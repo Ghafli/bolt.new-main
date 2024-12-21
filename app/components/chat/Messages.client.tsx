@@ -1,53 +1,80 @@
-import type { Message } from 'ai';
-import React from 'react';
-import { classNames } from '~/utils/classNames';
-import { AssistantMessage } from './AssistantMessage';
-import { UserMessage } from './UserMessage';
+// app/components/chat/Messages.client.tsx
+import React, { useEffect, useRef, useState } from "react";
+import { useChat } from "@/app/lib/stores/chat";
+import { AssistantMessage } from "./AssistantMessage";
+import { UserMessage } from "./UserMessage";
+import { useSnapScroll } from "@/app/lib/hooks/useSnapScroll";
+import styles from "./BaseChat.module.scss";
 
-interface MessagesProps {
-  id?: string;
-  className?: string;
-  isStreaming?: boolean;
-  messages?: Message[];
-}
+const Messages: React.FC = () => {
+    const { messages, addMessage } = useChat();
+    const { snap } = useSnapScroll();
 
-export const Messages = React.forwardRef<HTMLDivElement, MessagesProps>((props: MessagesProps, ref) => {
-  const { id, isStreaming = false, messages = [] } = props;
+    const chatBottomRef = useRef<HTMLDivElement>(null);
+    const [isStreaming, setIsStreaming] = useState(false);
 
-  return (
-    <div id={id} ref={ref} className={props.className}>
-      {messages.length > 0
-        ? messages.map((message, index) => {
-            const { role, content } = message;
-            const isUserMessage = role === 'user';
-            const isFirst = index === 0;
-            const isLast = index === messages.length - 1;
+    const fetchStreamedResponse = async (message: string) => {
+        setIsStreaming(true);
+          let partialResponse = "";
 
-            return (
-              <div
-                key={index}
-                className={classNames('flex gap-4 p-6 w-full rounded-[calc(0.75rem-1px)]', {
-                  'bg-bolt-elements-messages-background': isUserMessage || !isStreaming || (isStreaming && !isLast),
-                  'bg-gradient-to-b from-bolt-elements-messages-background from-30% to-transparent':
-                    isStreaming && isLast,
-                  'mt-4': !isFirst,
-                })}
-              >
-                {isUserMessage && (
-                  <div className="flex items-center justify-center w-[34px] h-[34px] overflow-hidden bg-white text-gray-600 rounded-full shrink-0 self-start">
-                    <div className="i-ph:user-fill text-xl"></div>
-                  </div>
-                )}
-                <div className="grid grid-col-1 w-full">
-                  {isUserMessage ? <UserMessage content={content} /> : <AssistantMessage content={content} />}
-                </div>
-              </div>
-            );
-          })
-        : null}
-      {isStreaming && (
-        <div className="text-center w-full text-bolt-elements-textSecondary i-svg-spinners:3-dots-fade text-4xl mt-4"></div>
-      )}
-    </div>
-  );
-});
+        try {
+             const response = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message }),
+            });
+            if (!response.body) {
+              throw new Error("No response body");
+            }
+            const reader = response.body.getReader();
+                while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    break;
+                }
+                    const chunk = new TextDecoder().decode(value);
+                    partialResponse+=chunk;
+                    addMessage({ type: "assistant", content: partialResponse });
+              }
+
+            }
+         catch (error) {
+            console.error("Error fetching stream response:", error);
+         }
+         finally {
+             setIsStreaming(false);
+         }
+    };
+
+
+    const handleSendMessage = async (message: string) => {
+        if(!message || isStreaming) {
+            return;
+        }
+        addMessage({ type: "user", content: message });
+          fetchStreamedResponse(message);
+    };
+    useEffect(() => {
+         snap('chat', { smooth: true, block: 'end' })
+    },[messages, snap]);
+
+
+    return (
+        <div
+            className={styles.chat}
+            style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}
+            id="chat"
+        >
+            {messages.map((message, index) => (
+                message.type === "user" ? (
+                    <UserMessage key={index} content={message.content} />
+                ) : (
+                    <AssistantMessage key={index} content={message.content} />
+                )
+            ))}
+             <div ref={chatBottomRef}></div>
+        </div>
+    );
+};
+
+export default Messages;

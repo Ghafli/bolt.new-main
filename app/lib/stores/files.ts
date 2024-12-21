@@ -1,3 +1,4 @@
+// app/lib/stores/files.ts
 import type { PathWatcherEvent, WebContainer } from '@webcontainer/api';
 import { getEncoding } from 'istextorbinary';
 import { map, type MapStore } from 'nanostores';
@@ -8,6 +9,7 @@ import { WORK_DIR } from '~/utils/constants';
 import { computeFileModifications } from '~/utils/diff';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
+import { create } from "zustand";
 
 const logger = createScopedLogger('FilesStore');
 
@@ -218,3 +220,21 @@ function convertToBuffer(view: Uint8Array): Buffer {
 
   return buffer as Buffer;
 }
+
+interface File {
+	name: string;
+	type: "file" | "directory";
+	children?: File[];
+}
+
+export type Files = File[]
+
+interface FilesState {
+	files: Files;
+	setFiles: (files: Files) => void;
+}
+
+export const useFiles = create<FilesState>((set) => ({
+	files: [],
+	setFiles: (files: Files) => set({ files }),
+}));

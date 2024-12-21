@@ -1,186 +1,202 @@
-import { WebContainer } from '@webcontainer/api';
-import { map, type MapStore } from 'nanostores';
-import * as nodePath from 'node:path';
-import type { BoltAction } from '~/types/actions';
-import { createScopedLogger } from '~/utils/logger';
-import { unreachable } from '~/utils/unreachable';
-import type { ActionCallbackData } from './message-parser';
+// app/lib/runtime/action-runner.ts
+import { messageParser } from "./message-parser";
+import { Logger } from "@/app/utils/logger";
+import { fetchWithRetries } from "@/app/lib/fetch";
+import { stripIndent } from "@/app/utils/stripIndent";
+import { Action } from "@/app/types/actions";
+import { env } from "@/load-context";
+import { ActionRunnerCallback } from "@/app/types/artifact";
+import { ActionRunner as ActionRunnerType, ActionState } from "./action-runner";
+import { WebContainer } from "@webcontainer/api";
 
-const logger = createScopedLogger('ActionRunner');
 
-export type ActionStatus = 'pending' | 'running' | 'complete' | 'aborted' | 'failed';
-
-export type BaseActionState = BoltAction & {
-  status: Exclude<ActionStatus, 'failed'>;
-  abort: () => void;
-  executed: boolean;
-  abortSignal: AbortSignal;
+const defaultHeaders = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${env.OPENAI_API_KEY}`,
 };
 
-export type FailedActionState = BoltAction &
-  Omit<BaseActionState, 'status'> & {
-    status: Extract<ActionStatus, 'failed'>;
-    error: string;
-  };
+// Old action runner that interacts with webcontainer
+export class ActionRunner implements ActionRunnerType {
+	#webcontainer: Promise<WebContainer>;
+	#currentExecutionPromise: Promise<void> = Promise.resolve();
 
-export type ActionState = BaseActionState | FailedActionState;
+	actions = null
 
-type BaseActionUpdate = Partial<Pick<BaseActionState, 'status' | 'abort' | 'executed'>>;
+	constructor(webcontainerPromise: Promise<WebContainer>) {
+		this.#webcontainer = webcontainerPromise;
+	}
 
-export type ActionStateUpdate =
-  | BaseActionUpdate
-  | (Omit<BaseActionUpdate, 'status'> & { status: 'failed'; error: string });
+	addAction = (data) => {
 
-type ActionsMap = MapStore<Record<string, ActionState>>;
+	};
 
-export class ActionRunner {
-  #webcontainer: Promise<WebContainer>;
-  #currentExecutionPromise: Promise<void> = Promise.resolve();
+	runAction = async (data) => {
+		const { actionId } = data;
+		return this.#executeAction(actionId)
+	};
 
-  actions: ActionsMap = map({});
 
-  constructor(webcontainerPromise: Promise<WebContainer>) {
-    this.#webcontainer = webcontainerPromise;
-  }
+	async #executeAction(actionId: string) {
 
-  addAction(data: ActionCallbackData) {
-    const { actionId } = data;
+	}
 
-    const actions = this.actions.get();
-    const action = actions[actionId];
-
-    if (action) {
-      // action already added
-      return;
-    }
-
-    const abortController = new AbortController();
-
-    this.actions.setKey(actionId, {
-      ...data.action,
-      status: 'pending',
-      executed: false,
-      abort: () => {
-        abortController.abort();
-        this.#updateAction(actionId, { status: 'aborted' });
-      },
-      abortSignal: abortController.signal,
-    });
-
-    this.#currentExecutionPromise.then(() => {
-      this.#updateAction(actionId, { status: 'running' });
-    });
-  }
-
-  async runAction(data: ActionCallbackData) {
-    const { actionId } = data;
-    const action = this.actions.get()[actionId];
-
-    if (!action) {
-      unreachable(`Action ${actionId} not found`);
-    }
-
-    if (action.executed) {
-      return;
-    }
-
-    this.#updateAction(actionId, { ...action, ...data.action, executed: true });
-
-    this.#currentExecutionPromise = this.#currentExecutionPromise
-      .then(() => {
-        return this.#executeAction(actionId);
-      })
-      .catch((error) => {
-        console.error('Action failed:', error);
-      });
-  }
-
-  async #executeAction(actionId: string) {
-    const action = this.actions.get()[actionId];
-
-    this.#updateAction(actionId, { status: 'running' });
-
-    try {
-      switch (action.type) {
-        case 'shell': {
-          await this.#runShellAction(action);
-          break;
+	async #runShellAction(action: ActionState) {
+        if (action.type !== 'shell') {
+           return
         }
-        case 'file': {
-          await this.#runFileAction(action);
-          break;
+
+        const webcontainer = await this.#webcontainer;
+
+        const process = await webcontainer.spawn('jsh', ['-c', action.content], {
+            env: { npm_config_yes: true },
+        });
+
+        process.output.pipeTo(
+            new WritableStream({
+                write(data) {
+					// here you can use the callback to stream to the client,
+					// but we do not need it because the output
+					// is streamed via the API call below
+                    console.log(data);
+                },
+            }),
+        );
+
+        const exitCode = await process.exit;
+
+        Logger.debug(`Process terminated with code ${exitCode}`);
+	};
+
+    async #runFileAction(action: ActionState) {
+
+		if (action.type !== 'file') {
+            return
         }
-      }
 
-      this.#updateAction(actionId, { status: action.abortSignal.aborted ? 'aborted' : 'complete' });
-    } catch (error) {
-      this.#updateAction(actionId, { status: 'failed', error: 'Action failed' });
+        const webcontainer = await this.#webcontainer;
+         let folder = nodePath.dirname(action.filePath);
 
-      // re-throw the error to be caught in the promise chain
-      throw error;
-    }
-  }
+        // remove trailing slashes
+        folder = folder.replace(/\/+$/g, '');
 
-  async #runShellAction(action: ActionState) {
-    if (action.type !== 'shell') {
-      unreachable('Expected shell action');
-    }
+        if (folder !== '.') {
+            try {
+                await webcontainer.fs.mkdir(folder, { recursive: true });
+                Logger.debug('Created folder', folder);
+            } catch (error) {
+                Logger.error('Failed to create folder\n\n', error);
+            }
+        }
 
-    const webcontainer = await this.#webcontainer;
-
-    const process = await webcontainer.spawn('jsh', ['-c', action.content], {
-      env: { npm_config_yes: true },
-    });
-
-    action.abortSignal.addEventListener('abort', () => {
-      process.kill();
-    });
-
-    process.output.pipeTo(
-      new WritableStream({
-        write(data) {
-          console.log(data);
-        },
-      }),
-    );
-
-    const exitCode = await process.exit;
-
-    logger.debug(`Process terminated with code ${exitCode}`);
-  }
-
-  async #runFileAction(action: ActionState) {
-    if (action.type !== 'file') {
-      unreachable('Expected file action');
-    }
-
-    const webcontainer = await this.#webcontainer;
-
-    let folder = nodePath.dirname(action.filePath);
-
-    // remove trailing slashes
-    folder = folder.replace(/\/+$/g, '');
-
-    if (folder !== '.') {
-      try {
-        await webcontainer.fs.mkdir(folder, { recursive: true });
-        logger.debug('Created folder', folder);
-      } catch (error) {
-        logger.error('Failed to create folder\n\n', error);
-      }
-    }
-
-    try {
-      await webcontainer.fs.writeFile(action.filePath, action.content);
-      logger.debug(`File written ${action.filePath}`);
-    } catch (error) {
-      logger.error('Failed to write file\n\n', error);
-    }
-  }
-
-  #updateAction(id: string, newState: ActionStateUpdate) {
-    const actions = this.actions.get();
-
-    this.actions.setKey(id, { ...actions[id], ...newState });
-  }
+        try {
+            await webcontainer.fs.writeFile(action.filePath, action.content);
+             Logger.debug(`File written ${action.filePath}`);
+        } catch (error) {
+           Logger.error('Failed to write file\n\n', error);
+        }
+	};
 }
+
+export const actionRunner = async (
+    message: string,
+    callback?: ActionRunnerCallback
+) => {
+    const actions = messageParser(message);
+    if (!actions) {
+        return null;
+    }
+    let response = "";
+    for (const action of actions) {
+        if (action.type === "chat") {
+            response += await chatAction(action.prompt, callback);
+        } else if (action.type === "shell") {
+            response += await shellAction(action.command, callback);
+        }
+		else if (action.type === "file"){
+			 const webContainerPromise = new ActionRunner(null as any)
+			 const fileAction = await webContainerPromise.runAction(action)
+			 if (callback) {
+                callback(fileAction as any);
+            }
+		}
+    }
+    return response;
+};
+
+const chatAction = async (prompt: string, callback?: ActionRunnerCallback) => {
+    try {
+        const response = await fetchWithRetries("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: defaultHeaders,
+            body: JSON.stringify({
+                model: "gpt-3.5-turbo",
+                messages: [{ role: "user", content: prompt }],
+                stream: true,
+            }),
+        });
+
+        if (!response.body) {
+            throw new Error("No response body");
+        }
+
+        const reader = response.body.getReader();
+        let partialResponse = "";
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                break;
+            }
+            const chunk = new TextDecoder().decode(value);
+
+            const lines = chunk.split("data: ");
+
+            for (const line of lines) {
+                if (line.startsWith("[DONE]")) {
+                    break;
+                }
+
+                 if (line) {
+                    try {
+                       const json = JSON.parse(line);
+                       const content = json.choices[0].delta?.content
+                        if(content) {
+                            partialResponse+=content;
+                              if (callback) {
+                                 callback(content);
+                               }
+                         }
+                    } catch (e) {
+                       Logger.error("Error parsing stream chunk", e)
+                    }
+                }
+
+            }
+        }
+        return partialResponse;
+
+    } catch (e) {
+        Logger.error("Error during chat action", e);
+        return "An error occurred while processing your request.";
+    }
+};
+
+const shellAction = async (command: string, callback?: ActionRunnerCallback) => {
+    try {
+        const response = await fetchWithRetries("/api/shell", {
+            method: "POST",
+            headers: defaultHeaders,
+            body: JSON.stringify({ command }),
+        });
+        if (!response.ok) {
+            throw new Error("Shell action failed");
+        }
+        const { output } = await response.json();
+        if (callback) {
+           callback(output);
+        }
+        return output
+    } catch (e) {
+         Logger.error("Error during shell action", e);
+        return "An error occurred while executing shell command.";
+    }
+};

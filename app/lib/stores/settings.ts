@@ -1,4 +1,7 @@
-import { map } from 'nanostores';
+// app/lib/stores/settings.ts
+
+import { create } from 'zustand';
+import { Theme } from "@/app/types/theme";
 import { workbenchStore } from './workbench';
 
 export interface Shortcut {
@@ -13,27 +16,27 @@ export interface Shortcut {
 
 export interface Shortcuts {
   toggleTerminal: Shortcut;
+  // add other shortcuts here
 }
 
-export interface Settings {
+export interface SettingsState {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
   shortcuts: Shortcuts;
+  setShortcuts: (shortcuts: Shortcuts) => void;
 }
 
-export const shortcutsStore = map<Shortcuts>({
-  toggleTerminal: {
-    key: 'j',
-    ctrlOrMetaKey: true,
-    action: () => workbenchStore.toggleTerminal(),
+
+
+export const useSettings = create<SettingsState>((set) => ({
+  theme: "light",
+  setTheme: (theme) => set({ theme }),
+  shortcuts: {
+    toggleTerminal: {
+      key: 'j',
+      ctrlOrMetaKey: true,
+      action: () => workbenchStore.toggleTerminal(),
+    },
   },
-});
-
-export const settingsStore = map<Settings>({
-  shortcuts: shortcutsStore.get(),
-});
-
-shortcutsStore.subscribe((shortcuts) => {
-  settingsStore.set({
-    ...settingsStore.get(),
-    shortcuts,
-  });
-});
+  setShortcuts: (shortcuts) => set({ shortcuts }),
+}));

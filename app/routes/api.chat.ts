@@ -1,59 +1,85 @@
-import { type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { MAX_RESPONSE_SEGMENTS, MAX_TOKENS } from '~/lib/.server/llm/constants';
-import { CONTINUE_PROMPT } from '~/lib/.server/llm/prompts';
-import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/llm/stream-text';
-import SwitchableStream from '~/lib/.server/llm/switchable-stream';
+// app/routes/api.chat.ts
+import { Request } from "node-fetch";
+import { handleApiError } from "@/app/utils/api";
+import { Logger } from "@/app/utils/logger";
+import { useChat } from "@/app/lib/stores/chat";
+import { type Messages, streamText } from "@/app/lib/.server/llm/stream-text";
+import { action } from "./chat"; // assumes that the old logic is in /app/routes/chat.ts
 
-export async function action(args: ActionFunctionArgs) {
-  return chatAction(args);
-}
 
-async function chatAction({ context, request }: ActionFunctionArgs) {
-  const { messages } = await request.json<{ messages: Messages }>();
+const rateLimit = new Map<string, number[]>();
+const MAX_REQUESTS = 5;
+const TIME_WINDOW = 60 * 1000; // 1 minute
 
-  const stream = new SwitchableStream();
+const rateLimitMiddleware = (req: Request) => {
+    const ip = req.headers.get("x-forwarded-for") || 'local';
+    if(!ip){
+        return;
+    }
+    const requests = rateLimit.get(ip) || [];
 
-  try {
-    const options: StreamingOptions = {
-      toolChoice: 'none',
-      onFinish: async ({ text: content, finishReason }) => {
-        if (finishReason !== 'length') {
-          return stream.close();
-        }
+    const now = Date.now();
+    const recentRequests = requests.filter(time => now - time < TIME_WINDOW);
+    rateLimit.set(ip, recentRequests);
 
-        if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
-          throw Error('Cannot continue message: Maximum segments reached');
-        }
+    if (recentRequests.length >= MAX_REQUESTS) {
+        return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429, headers: { 'Content-Type': 'application/json' } })
+    }
+    rateLimit.set(ip, [...recentRequests, now]);
+};
 
-        const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
+// This is a modified version of the old code that makes it compatible with a streaming response
+const actionRunner = async (message: string, onToken: (token: string | undefined) => void) => {
+		const {messages} = await new Request("http://localhost", {method: "POST", body: JSON.stringify({messages: [{role: 'user', content: message}]})}).json<{ messages: Messages }>()
+		const response = await action({context: {} as any, request: new Request("http://localhost", {method: "POST", body: JSON.stringify({messages: [{role: 'user', content: message}]})})});
 
-        console.log(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
+	 const reader = response.body?.getReader();
 
-        messages.push({ role: 'assistant', content });
-        messages.push({ role: 'user', content: CONTINUE_PROMPT });
+		if(!reader){
+			return;
+		}
+	 while(true){
+		  const {done, value} = await reader.read();
 
-        const result = await streamText(messages, context.cloudflare.env, options);
+		  if(done){
+			  break;
+		  }
+		  onToken(new TextDecoder().decode(value));
+	 }
+	 onToken(undefined);
+};
+export const POST = async (req: Request) => {
+    const rateLimitResponse = rateLimitMiddleware(req);
+    if(rateLimitResponse){
+       return rateLimitResponse;
+    }
 
-        return stream.switchSource(result.toAIStream());
-      },
-    };
+    try {
+       const { message } = await req.json();
 
-    const result = await streamText(messages, context.cloudflare.env, options);
+        const stream = new ReadableStream({
+            async start(controller) {
+                try {
+                    await actionRunner(message, (token) => {
+                        if (token !== undefined) {
+                            controller.enqueue(new TextEncoder().encode(token));
+                        }
+                    });
+                } catch (error) {
+                    controller.error(error);
+                }
+                finally{
+                    controller.close();
+                }
 
-    stream.switchSource(result.toAIStream());
+            },
+        });
 
-    return new Response(stream.readable, {
-      status: 200,
-      headers: {
-        contentType: 'text/plain; charset=utf-8',
-      },
-    });
-  } catch (error) {
-    console.log(error);
-
-    throw new Response(null, {
-      status: 500,
-      statusText: 'Internal Server Error',
-    });
-  }
-}
+        return new Response(stream, {
+            headers: { 'Content-Type': 'text/plain' },
+         });
+    }
+    catch(e){
+        return handleApiError(e, "Error processing chat message");
+    }
+};
