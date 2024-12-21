@@ -5,6 +5,7 @@ import { Files } from "@/app/lib/stores/files";
 import { getFilesFromWebContainer } from "@/app/utils/shell";
 let webcontainerInstance: WebContainer | null = null;
 let sessionId: string | null = null;
+const WEBCONTAINER_STORAGE_KEY = "webcontainer-data"
 
 const getWebcontainerInstance = async () => {
     if (webcontainerInstance) {
@@ -17,7 +18,19 @@ const getWebcontainerInstance = async () => {
             sessionId = persistedSessionId;
             webcontainerInstance = await WebContainer.resume(persistedSessionId);
         }else{
+             const persistedData = localStorage.getItem(WEBCONTAINER_STORAGE_KEY);
             webcontainerInstance = await WebContainer.boot();
+
+             if(persistedData){
+                try{
+                    const buffer = new Uint8Array(JSON.parse(persistedData).data)
+                   await webcontainerInstance.fs.import(buffer);
+                }
+                 catch(e){
+                    console.error("Error restoring from localStorage: ", e)
+                }
+             }
+
             sessionStorage.setItem("sessionId", webcontainerInstance.sessionId)
         }
 
@@ -29,6 +42,21 @@ const getWebcontainerInstance = async () => {
         return null;
      }
 
+}
+const saveState = async() => {
+    const webContainer = await getWebcontainerInstance();
+      if(!webContainer) {
+            console.error("WebContainer not initialized");
+            return;
+        }
+        try{
+              const data = await webContainer.fs.export()
+             const json = JSON.stringify({data: Array.from(data)});
+                localStorage.setItem(WEBCONTAINER_STORAGE_KEY, json);
+        }
+        catch(e){
+               console.error("Error saving to localStorage: ", e)
+        }
 }
 
 export const useWebContainer = () => {
@@ -45,7 +73,13 @@ export const useWebContainer = () => {
           setFiles(newFiles);
         }
     }
+  const beforeUnload = () => {
+    saveState()
+  };
 
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', beforeUnload);
+  }
     const writeFile = async (filePath: string, content: Uint8Array) => {
         const webContainer = await getWebcontainerInstance();
         if (!webContainer) {
@@ -55,6 +89,7 @@ export const useWebContainer = () => {
 
         try {
            await webContainer.fs.writeFile(filePath, content);
+             await saveState();
         } catch (error) {
             console.error("Error writing file:", error);
         }
