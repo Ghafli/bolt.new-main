@@ -3,10 +3,9 @@ import { Request } from "node-fetch";
 import { handleApiError } from "@/app/utils/api";
 import { Logger } from "@/app/utils/logger";
 import { useChat } from "@/app/lib/stores/chat";
-import { type Messages } from "@/app/lib/.server/llm/stream-text";
+import { type Messages, streamText } from "@/app/lib/.server/llm/stream-text";
 import { action } from "./chat"; // assumes that the old logic is in /app/routes/chat.ts
 
-// ActionRunner needs to be updated to work with the new approach
 
 const rateLimit = new Map<string, number[]>();
 const MAX_REQUESTS = 5;
@@ -29,34 +28,58 @@ const rateLimitMiddleware = (req: Request) => {
     rateLimit.set(ip, [...recentRequests, now]);
 };
 
-
-// This is a modified version of the old code
-// This is just a placeholder and needs to be adapted to your specific `actionRunner` needs
-const actionRunner = async (message: string) => {
-	    // Use the previous chat action to process the message.
-		// It will send back a response to the client.
+// This is a modified version of the old code that makes it compatible with a streaming response
+const actionRunner = async (message: string, onToken: (token: string | undefined) => void) => {
 		const {messages} = await new Request("http://localhost", {method: "POST", body: JSON.stringify({messages: [{role: 'user', content: message}]})}).json<{ messages: Messages }>()
-
 		const response = await action({context: {} as any, request: new Request("http://localhost", {method: "POST", body: JSON.stringify({messages: [{role: 'user', content: message}]})})});
-    	const text = await response.text()
-        return {response: text};
-};
 
+	 const reader = response.body?.getReader();
+
+		if(!reader){
+			return;
+		}
+	 while(true){
+		  const {done, value} = await reader.read();
+
+		  if(done){
+			  break;
+		  }
+		  onToken(new TextDecoder().decode(value));
+	 }
+	 onToken(undefined);
+};
 export const POST = async (req: Request) => {
     const rateLimitResponse = rateLimitMiddleware(req);
     if(rateLimitResponse){
        return rateLimitResponse;
     }
 
-    try{
-        const { message } = await req.json();
-         const response = await actionRunner(message);
-        return new Response(JSON.stringify({ response }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
+    try {
+       const { message } = await req.json();
+
+        const stream = new ReadableStream({
+            async start(controller) {
+                try {
+                    await actionRunner(message, (token) => {
+                        if (token !== undefined) {
+                            controller.enqueue(new TextEncoder().encode(token));
+                        }
+                    });
+                } catch (error) {
+                    controller.error(error);
+                }
+                finally{
+                    controller.close();
+                }
+
+            },
         });
-     }
-     catch(e){
+
+        return new Response(stream, {
+            headers: { 'Content-Type': 'text/plain' },
+         });
+    }
+    catch(e){
         return handleApiError(e, "Error processing chat message");
-     }
+    }
 };
