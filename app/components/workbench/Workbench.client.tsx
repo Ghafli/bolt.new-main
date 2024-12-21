@@ -8,6 +8,7 @@ import { useWorkbench } from "@/app/lib/stores/workbench";
 import styles from "./Workbench.module.scss";
 import GitCommands from './GitCommands';
 import ResourceMonitor from './ResourceMonitor';
+import PortManager from './PortManager';
 
 
 const Workbench: React.FC = () => {
@@ -17,6 +18,7 @@ const Workbench: React.FC = () => {
     <div className={styles.workbench}>
         <div className={styles.sidebar}>
              <FileTree />
+          <PortManager />
           </div>
         <div className={styles.mainContent}>
             <div className={styles.mainHeader}>
