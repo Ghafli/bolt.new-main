@@ -1,87 +1,48 @@
-// app/lib/webcontainer/index.ts
-import { WebContainer } from "@webcontainer/api";
-import { terminal } from "@/app/lib/stores/terminal";
-import { Files } from "@/app/lib/stores/files"; // Import type if necessary
-import { getFilesFromWebContainer } from "@/app/utils/shell";
-import { useFiles } from "@/app/lib/stores/files"; // import useFiles
-
-let webcontainerInstance: WebContainer | null = null;
-let sessionId: string | null = null;
-
-const getWebcontainerInstance = async () => {
-    if (webcontainerInstance) {
-        return webcontainerInstance;
-    }
-
-     try{
-        const persistedSessionId = sessionStorage.getItem("sessionId");
-       if(persistedSessionId){
-            sessionId = persistedSessionId;
-            webcontainerInstance = await WebContainer.resume(persistedSessionId);
-        }else{
-            webcontainerInstance = await WebContainer.boot();
-            sessionStorage.setItem("sessionId", webcontainerInstance.sessionId)
-        }
-
-        sessionId = webcontainerInstance.sessionId;
-
-        return webcontainerInstance;
-     } catch(e){
-        console.error("Error getting WebContainer instance: ", e)
-        return null;
-     }
-
+.settingsOverlay{
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
 }
 
-export const useWebContainer = () => {
-    const start = async () => {
-       const webContainer = await getWebcontainerInstance();
-        if(!webContainer){
-            return;
-        }
+.settingsPanel{
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 400px;
+    max-width: 90%;
+    position: relative;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
 
-        const terminalProcess = await webContainer.spawn("jsh");
-        terminal.setTerminalProcess(terminalProcess);
-        const newFiles = await getFiles();
-        if(newFiles){
-          setFiles(newFiles); // Update the file store after the terminal is running
-        }
-    }
+.header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
 
-    const writeFile = async (filePath: string, content: Uint8Array) => {
-        const webContainer = await getWebcontainerInstance();
-        if (!webContainer) {
-            console.error("WebContainer not initialized");
-            return;
-        }
+.closeButton{
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
 
-        try {
-           await webContainer.fs.writeFile(filePath, content);
-        } catch (error) {
-            console.error("Error writing file:", error);
-        }
-    };
+.settingsBody{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 
-
-    const getFiles = async () : Promise<Files|undefined> => {
-        const webContainer = await getWebcontainerInstance();
-        if(!webContainer) {
-            console.error("WebContainer not initialized");
-            return;
-        }
-
-        try{
-            return await getFilesFromWebContainer(webContainer);
-        }
-        catch(error){
-            console.error("Error getting files from WebContainer: ", error)
-        }
-    }
-    const {setFiles} = useFiles(); // get setFiles function from useFiles()
-    return {
-        start,
-        writeFile,
-        getFiles,
-        sessionId
-    };
+.settingItem{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
