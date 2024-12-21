@@ -1,8 +1,10 @@
 // app/lib/webcontainer/index.ts
 import { WebContainer } from "@webcontainer/api";
 import { terminal } from "@/app/lib/stores/terminal";
-import { Files } from "@/app/lib/stores/files";
+import { Files } from "@/app/lib/stores/files"; // Import type if necessary
 import { getFilesFromWebContainer } from "@/app/utils/shell";
+import { useFiles } from "@/app/lib/stores/files"; // import useFiles
+
 let webcontainerInstance: WebContainer | null = null;
 let sessionId: string | null = null;
 
@@ -40,6 +42,10 @@ export const useWebContainer = () => {
 
         const terminalProcess = await webContainer.spawn("jsh");
         terminal.setTerminalProcess(terminalProcess);
+        const newFiles = await getFiles();
+        if(newFiles){
+          setFiles(newFiles); // Update the file store after the terminal is running
+        }
     }
 
     const writeFile = async (filePath: string, content: Uint8Array) => {
@@ -71,7 +77,7 @@ export const useWebContainer = () => {
             console.error("Error getting files from WebContainer: ", error)
         }
     }
-
+    const {setFiles} = useFiles(); // get setFiles function from useFiles()
     return {
         start,
         writeFile,
