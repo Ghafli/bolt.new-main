@@ -1,20 +1,38 @@
-import { type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { StreamingTextResponse, parseStreamPart } from 'ai';
-import { streamText } from '~/lib/.server/llm/stream-text';
-import { stripIndents } from '~/utils/stripIndent';
+// app/routes/api.enhancer.ts
+import { Request } from "node-fetch";
+import { handleApiError } from "@/app/utils/api";
+import { Logger } from "@/app/utils/logger";
+import { type Messages, streamText,  } from "@/app/lib/.server/llm/stream-text";
+import { parseStreamPart } from "ai";
+import { stripIndents } from "@/app/utils/stripIndent";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-export async function action(args: ActionFunctionArgs) {
-  return enhancerAction(args);
-}
+const rateLimit = new Map<string, number[]>();
+const MAX_REQUESTS = 5;
+const TIME_WINDOW = 60 * 1000; // 1 minute
 
-async function enhancerAction({ context, request }: ActionFunctionArgs) {
-  const { message } = await request.json<{ message: string }>();
+const rateLimitMiddleware = (req: Request) => {
+    const ip = req.headers.get("x-forwarded-for") || 'local';
+    if(!ip){
+        return;
+    }
+    const requests = rateLimit.get(ip) || [];
 
-  try {
-    const result = await streamText(
+    const now = Date.now();
+    const recentRequests = requests.filter(time => now - time < TIME_WINDOW);
+    rateLimit.set(ip, recentRequests);
+
+    if (recentRequests.length >= MAX_REQUESTS) {
+         return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429, headers: { 'Content-Type': 'application/json' } })
+    }
+    rateLimit.set(ip, [...recentRequests, now]);
+};
+
+// This is a recreation of what the previous logic was doing but now in the form of a hook
+const usePromptEnhancer = async (message: string) => {
+      const result = await streamText(
       [
         {
           role: 'user',
@@ -29,10 +47,11 @@ async function enhancerAction({ context, request }: ActionFunctionArgs) {
         `,
         },
       ],
-      context.cloudflare.env,
+     {} as any,
     );
 
-    const transformStream = new TransformStream({
+   let enhancedPrompt = '';
+     const transformStream = new TransformStream({
       transform(chunk, controller) {
         const processedChunk = decoder
           .decode(chunk)
@@ -41,20 +60,34 @@ async function enhancerAction({ context, request }: ActionFunctionArgs) {
           .map(parseStreamPart)
           .map((part) => part.value)
           .join('');
+		    enhancedPrompt += processedChunk;
 
         controller.enqueue(encoder.encode(processedChunk));
       },
     });
 
-    const transformedStream = result.toAIStream().pipeThrough(transformStream);
+	  await result.toAIStream().pipeThrough(transformStream).pipeTo(new WritableStream())
 
-    return new StreamingTextResponse(transformedStream);
-  } catch (error) {
-    console.log(error);
 
-    throw new Response(null, {
-      status: 500,
-      statusText: 'Internal Server Error',
-    });
-  }
+    return enhancedPrompt;
+
 }
+
+export const POST = async (req: Request) => {
+    const rateLimitResponse = rateLimitMiddleware(req);
+    if(rateLimitResponse){
+       return rateLimitResponse;
+    }
+
+     try{
+        const { message } = await req.json();
+         const enhancedPrompt = await usePromptEnhancer(message);
+         return new Response(JSON.stringify({enhancedPrompt}), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      catch(e){
+          return handleApiError(e, "Error processing prompt enhancement");
+      }
+};
