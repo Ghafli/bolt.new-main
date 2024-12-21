@@ -6,6 +6,7 @@ import { getFilesFromWebContainer } from "@/app/utils/shell";
 let webcontainerInstance: WebContainer | null = null;
 let sessionId: string | null = null;
 const WEBCONTAINER_STORAGE_KEY = "webcontainer-data"
+let forwardedPorts: number[] = [];
 
 const getWebcontainerInstance = async () => {
     if (webcontainerInstance) {
@@ -125,6 +126,26 @@ export const useWebContainer = () => {
             }
         };
 
+    const exposePort = async (port: number) => {
+        const webContainer = await getWebcontainerInstance();
+        if(!webContainer) {
+            console.error("WebContainer not initialized");
+             return;
+        }
+         if (forwardedPorts.includes(port)) {
+             return;
+        }
+        try{
+            await webContainer.expose({ port: port });
+           forwardedPorts.push(port);
+       }catch(error){
+            console.error("Error exposing port:", error);
+        }
+    }
+
+     const getExposedPorts = () => {
+        return forwardedPorts;
+    }
 
     const {setFiles} = useFiles();
     return {
@@ -132,6 +153,8 @@ export const useWebContainer = () => {
         writeFile,
         getFiles,
         sessionId,
-        getResourceUsage
+        getResourceUsage,
+        exposePort,
+        getExposedPorts
     };
 }
