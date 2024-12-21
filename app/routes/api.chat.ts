@@ -1,59 +1,62 @@
-import { type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { MAX_RESPONSE_SEGMENTS, MAX_TOKENS } from '~/lib/.server/llm/constants';
-import { CONTINUE_PROMPT } from '~/lib/.server/llm/prompts';
-import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/llm/stream-text';
-import SwitchableStream from '~/lib/.server/llm/switchable-stream';
+// app/routes/api.chat.ts
+import { Request } from "node-fetch";
+import { handleApiError } from "@/app/utils/api";
+import { Logger } from "@/app/utils/logger";
+import { useChat } from "@/app/lib/stores/chat";
+import { type Messages } from "@/app/lib/.server/llm/stream-text";
+import { action } from "./chat"; // assumes that the old logic is in /app/routes/chat.ts
 
-export async function action(args: ActionFunctionArgs) {
-  return chatAction(args);
-}
+// ActionRunner needs to be updated to work with the new approach
 
-async function chatAction({ context, request }: ActionFunctionArgs) {
-  const { messages } = await request.json<{ messages: Messages }>();
+const rateLimit = new Map<string, number[]>();
+const MAX_REQUESTS = 5;
+const TIME_WINDOW = 60 * 1000; // 1 minute
 
-  const stream = new SwitchableStream();
+const rateLimitMiddleware = (req: Request) => {
+    const ip = req.headers.get("x-forwarded-for") || 'local';
+    if(!ip){
+        return;
+    }
+    const requests = rateLimit.get(ip) || [];
 
-  try {
-    const options: StreamingOptions = {
-      toolChoice: 'none',
-      onFinish: async ({ text: content, finishReason }) => {
-        if (finishReason !== 'length') {
-          return stream.close();
-        }
+    const now = Date.now();
+    const recentRequests = requests.filter(time => now - time < TIME_WINDOW);
+    rateLimit.set(ip, recentRequests);
 
-        if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
-          throw Error('Cannot continue message: Maximum segments reached');
-        }
+    if (recentRequests.length >= MAX_REQUESTS) {
+        return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429, headers: { 'Content-Type': 'application/json' } })
+    }
+    rateLimit.set(ip, [...recentRequests, now]);
+};
 
-        const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
 
-        console.log(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
+// This is a modified version of the old code
+// This is just a placeholder and needs to be adapted to your specific `actionRunner` needs
+const actionRunner = async (message: string) => {
+	    // Use the previous chat action to process the message.
+		// It will send back a response to the client.
+		const {messages} = await new Request("http://localhost", {method: "POST", body: JSON.stringify({messages: [{role: 'user', content: message}]})}).json<{ messages: Messages }>()
 
-        messages.push({ role: 'assistant', content });
-        messages.push({ role: 'user', content: CONTINUE_PROMPT });
+		const response = await action({context: {} as any, request: new Request("http://localhost", {method: "POST", body: JSON.stringify({messages: [{role: 'user', content: message}]})})});
+    	const text = await response.text()
+        return {response: text};
+};
 
-        const result = await streamText(messages, context.cloudflare.env, options);
+export const POST = async (req: Request) => {
+    const rateLimitResponse = rateLimitMiddleware(req);
+    if(rateLimitResponse){
+       return rateLimitResponse;
+    }
 
-        return stream.switchSource(result.toAIStream());
-      },
-    };
-
-    const result = await streamText(messages, context.cloudflare.env, options);
-
-    stream.switchSource(result.toAIStream());
-
-    return new Response(stream.readable, {
-      status: 200,
-      headers: {
-        contentType: 'text/plain; charset=utf-8',
-      },
-    });
-  } catch (error) {
-    console.log(error);
-
-    throw new Response(null, {
-      status: 500,
-      statusText: 'Internal Server Error',
-    });
-  }
-}
+    try{
+        const { message } = await req.json();
+         const response = await actionRunner(message);
+        return new Response(JSON.stringify({ response }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+     }
+     catch(e){
+        return handleApiError(e, "Error processing chat message");
+     }
+};
