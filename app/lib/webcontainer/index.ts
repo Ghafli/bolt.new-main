@@ -1,35 +1,81 @@
-import { WebContainer } from '@webcontainer/api';
-import { WORK_DIR_NAME } from '~/utils/constants';
+// app/lib/webcontainer/index.ts
+import { WebContainer } from "@webcontainer/api";
+import { terminal } from "@/app/lib/stores/terminal";
+import { Files } from "@/app/lib/stores/files";
+import { getFilesFromWebContainer } from "@/app/utils/shell";
+let webcontainerInstance: WebContainer | null = null;
+let sessionId: string | null = null;
 
-interface WebContainerContext {
-  loaded: boolean;
+const getWebcontainerInstance = async () => {
+    if (webcontainerInstance) {
+        return webcontainerInstance;
+    }
+
+     try{
+        const persistedSessionId = sessionStorage.getItem("sessionId");
+       if(persistedSessionId){
+            sessionId = persistedSessionId;
+            webcontainerInstance = await WebContainer.resume(persistedSessionId);
+        }else{
+            webcontainerInstance = await WebContainer.boot();
+            sessionStorage.setItem("sessionId", webcontainerInstance.sessionId)
+        }
+
+        sessionId = webcontainerInstance.sessionId;
+
+        return webcontainerInstance;
+     } catch(e){
+        console.error("Error getting WebContainer instance: ", e)
+        return null;
+     }
+
 }
 
-export const webcontainerContext: WebContainerContext = import.meta.hot?.data.webcontainerContext ?? {
-  loaded: false,
-};
+export const useWebContainer = () => {
+    const start = async () => {
+       const webContainer = await getWebcontainerInstance();
+        if(!webContainer){
+            return;
+        }
 
-if (import.meta.hot) {
-  import.meta.hot.data.webcontainerContext = webcontainerContext;
-}
+        const terminalProcess = await webContainer.spawn("jsh");
+        terminal.setTerminalProcess(terminalProcess);
+    }
 
-export let webcontainer: Promise<WebContainer> = new Promise(() => {
-  // noop for ssr
-});
+    const writeFile = async (filePath: string, content: Uint8Array) => {
+        const webContainer = await getWebcontainerInstance();
+        if (!webContainer) {
+            console.error("WebContainer not initialized");
+            return;
+        }
 
-if (!import.meta.env.SSR) {
-  webcontainer =
-    import.meta.hot?.data.webcontainer ??
-    Promise.resolve()
-      .then(() => {
-        return WebContainer.boot({ workdirName: WORK_DIR_NAME });
-      })
-      .then((webcontainer) => {
-        webcontainerContext.loaded = true;
-        return webcontainer;
-      });
+        try {
+           await webContainer.fs.writeFile(filePath, content);
+        } catch (error) {
+            console.error("Error writing file:", error);
+        }
+    };
 
-  if (import.meta.hot) {
-    import.meta.hot.data.webcontainer = webcontainer;
-  }
+
+    const getFiles = async () : Promise<Files|undefined> => {
+        const webContainer = await getWebcontainerInstance();
+        if(!webContainer) {
+            console.error("WebContainer not initialized");
+            return;
+        }
+
+        try{
+            return await getFilesFromWebContainer(webContainer);
+        }
+        catch(error){
+            console.error("Error getting files from WebContainer: ", error)
+        }
+    }
+
+    return {
+        start,
+        writeFile,
+        getFiles,
+        sessionId
+    };
 }
