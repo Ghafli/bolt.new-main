@@ -1,5 +1,9 @@
-.auth{
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
+--- a/app/components/auth/Auth.module.scss
++++ b/app/components/auth/Auth.module.scss
+@@ -1,6 +1,6 @@
+ .auth{
+     display: flex;
+     gap: 10px;
+-    align-items: center;
++    align-items: center
+ }
