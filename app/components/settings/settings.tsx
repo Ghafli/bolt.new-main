@@ -1,41 +1,47 @@
-// app/components/settings/Settings.tsx
-import React from "react";
-import { useSettings } from "@/app/lib/stores/settings";
-import { ThemeSwitch } from "@/app/components/ui/ThemeSwitch";
+import { FunctionComponent, useState } from "react";
+import { Dialog } from "../ui/Dialog";
 import styles from "./Settings.module.scss";
+import { useSettingsStore } from "~/app/lib/stores/settings";
+import { Slider } from "../ui/Slider";
+import { IconButton } from "../ui/IconButton";
 
-interface SettingsProps {
-  onClose: () => void;
-}
+const Settings: FunctionComponent = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const { fontSize, setFontSize } = useSettingsStore();
 
-const Settings: React.FC<SettingsProps> = ({ onClose }) => {
-    const { theme, setTheme } = useSettings();
-
-    const handleThemeChange = (newTheme: "light" | "dark") => {
-        setTheme(newTheme);
-    };
-
-    return (
-        <div className={styles.settingsOverlay}>
-           <div className={styles.settingsPanel}>
-                <div className={styles.header}>
-                    <h2>Settings</h2>
-                     <button className={styles.closeButton} onClick={onClose}>
-                        X
-                    </button>
+  return (
+    <>
+      <IconButton
+        aria-label="settings"
+        onClick={() => setIsOpen(true)}
+        icon="settings"
+      />
+      <Dialog
+        title="Settings"
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+      >
+        <div className={styles.settings}>
+          <div className={styles.content}>
+            <div className={styles.section}>
+              <div className={styles.title}>Editor</div>
+              <div className={styles.options}>
+                <div className={styles.option}>
+                  <div className={styles["option-name"]}>Font Size</div>
+                  <Slider
+                    min={10}
+                    max={24}
+                    value={fontSize}
+                    onChange={setFontSize}
+                  />
                 </div>
-               <div className={styles.settingsBody}>
-                     <div className={styles.settingItem}>
-                         <label>Theme</label>
-                        <ThemeSwitch
-                            checked={theme === "dark"}
-                            onChange={() => handleThemeChange(theme === "dark" ? "light" : "dark")}
-                        />
-                    </div>
-                </div>
+              </div>
             </div>
+          </div>
         </div>
-    );
+      </Dialog>
+    </>
+  );
 };
 
 export default Settings;
