@@ -1,41 +1,41 @@
-import { useStore } from '@nanostores/react';
-import { ClientOnly } from 'remix-utils/client-only';
-import { chatStore } from '~/lib/stores/chat';
-import { classNames } from '~/utils/classNames';
-import { HeaderActionButtons } from './HeaderActionButtons.client';
-import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
+import { FunctionComponent } from "react";
+import { IconButton } from "~/app/components/ui/IconButton";
+import { useWorkbenchStore } from "~/app/lib/stores/workbench";
+import { Settings } from "../settings/settings";
+import { HeaderActionButtons } from "./HeaderActionButtons.client";
+import Logo from "~/icons/logo.svg";
+import LogoText from "~/icons/logo-text.svg";
+import { useTheme } from "~/app/lib/stores/theme";
+import { ThemeSwitch } from "../ui/ThemeSwitch";
+import { classNames } from "~/app/utils/classNames";
 
-export function Header() {
-  const chat = useStore(chatStore);
+const Header: FunctionComponent = () => {
+  const { setSideBarOpen, sideBarOpen } = useWorkbenchStore();
+  const { theme } = useTheme();
 
   return (
     <header
       className={classNames(
-        'flex items-center bg-bolt-elements-background-depth-1 p-5 border-b h-[var(--header-height)]',
-        {
-          'border-transparent': !chat.started,
-          'border-bolt-elements-borderColor': chat.started,
-        },
+        "z-20 flex h-14 items-center gap-2 border-b border-b-color-border bg-color-bg-1 px-2 text-color-text-1",
+        theme === "dark" ? "dark" : "light",
       )}
     >
-      <div className="flex items-center gap-2 z-logo text-bolt-elements-textPrimary cursor-pointer">
-        <div className="i-ph:sidebar-simple-duotone text-xl" />
-        <a href="/" className="text-2xl font-semibold text-accent flex items-center">
-          <span className="i-bolt:logo-text?mask w-[46px] inline-block" />
-        </a>
+      <IconButton
+        aria-label="toggle sidebar"
+        onClick={() => setSideBarOpen(!sideBarOpen)}
+        icon="menu"
+      />
+      <div className="flex items-center gap-2">
+        <Logo className="h-8 w-8" />
+        <LogoText className="h-4" />
       </div>
-      <span className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">
-        <ClientOnly>{() => <ChatDescription />}</ClientOnly>
-      </span>
-      {chat.started && (
-        <ClientOnly>
-          {() => (
-            <div className="mr-1">
-              <HeaderActionButtons />
-            </div>
-          )}
-        </ClientOnly>
-      )}
+      <div className="ml-auto flex items-center gap-2">
+        <HeaderActionButtons />
+        <ThemeSwitch />
+        <Settings />
+      </div>
     </header>
   );
-}
+};
+
+export default Header;
