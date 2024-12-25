@@ -1,18 +1,42 @@
-export type ActionType = 'file' | 'shell';
+import { ChatMessage } from "./terminal";
+import { Artifact } from "./artifact";
 
-export interface BaseAction {
-  content: string;
-}
-
-export interface FileAction extends BaseAction {
-  type: 'file';
-  filePath: string;
-}
-
-export interface ShellAction extends BaseAction {
-  type: 'shell';
-}
-
-export type BoltAction = FileAction | ShellAction;
-
-export type BoltActionData = BoltAction | BaseAction;
+export type Action =
+  | {
+      type: "write";
+      text: string;
+    }
+  | {
+      type: "clear";
+    }
+  | {
+      type: "run";
+      command: string;
+    }
+  | {
+    type: "update_chat";
+    messages: ChatMessage[]
+  }
+  | {
+      type: "set_artifact";
+      artifact: Artifact;
+    }
+    | {
+      type: "close_artifact";
+    }
+    | {
+      type: "reset";
+    }
+  | {
+      type: "error";
+      error: string;
+    }
+  | {
+    type: 'open_file';
+    path: string;
+  }
+  | {
+    type: 'create_file';
+    path: string;
+    content: string;
+  }
