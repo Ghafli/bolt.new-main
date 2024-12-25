@@ -1,108 +1,43 @@
-import { createTwoFilesPatch } from 'diff';
-import type { FileMap } from '~/lib/stores/files';
-import { MODIFICATIONS_TAG_NAME } from './constants';
+type Diff =
+  | { type: "equal"; value: string }
+  | { type: "add"; value: string }
+  | { type: "remove"; value: string };
 
-export const modificationsRegex = new RegExp(
-  `^<${MODIFICATIONS_TAG_NAME}>[\\s\\S]*?<\\/${MODIFICATIONS_TAG_NAME}>\\s+`,
-  'g',
-);
+export function diff(str1: string, str2: string): Diff[] {
+  const result: Diff[] = [];
+  let i = 0;
+  let j = 0;
 
-interface ModifiedFile {
-  type: 'diff' | 'file';
-  content: string;
-}
-
-type FileModifications = Record<string, ModifiedFile>;
-
-export function computeFileModifications(files: FileMap, modifiedFiles: Map<string, string>) {
-  const modifications: FileModifications = {};
-
-  let hasModifiedFiles = false;
-
-  for (const [filePath, originalContent] of modifiedFiles) {
-    const file = files[filePath];
-
-    if (file?.type !== 'file') {
-      continue;
-    }
-
-    const unifiedDiff = diffFiles(filePath, originalContent, file.content);
-
-    if (!unifiedDiff) {
-      // files are identical
-      continue;
-    }
-
-    hasModifiedFiles = true;
-
-    if (unifiedDiff.length > file.content.length) {
-      // if there are lots of changes we simply grab the current file content since it's smaller than the diff
-      modifications[filePath] = { type: 'file', content: file.content };
+  while (i < str1.length || j < str2.length) {
+    if (i < str1.length && j < str2.length && str1[i] === str2[j]) {
+      let start = i;
+      while (
+        i < str1.length &&
+        j < str2.length &&
+        str1[i] === str2[j]
+      ) {
+        i++;
+        j++;
+      }
+      result.push({ type: "equal", value: str1.substring(start, i) });
     } else {
-      // otherwise we use the diff since it's smaller
-      modifications[filePath] = { type: 'diff', content: unifiedDiff };
+      let start1 = i;
+      while (i < str1.length && (j >= str2.length || str1[i] !== str2[j])) {
+        i++;
+      }
+      if (start1 < i) {
+        result.push({ type: "remove", value: str1.substring(start1, i) });
+      }
+      let start2 = j;
+      while (j < str2.length && (i >= str1.length || str1[i] !== str2[j])) {
+          j++
+      }
+
+        if (start2 < j) {
+          result.push({ type: 'add', value: str2.substring(start2, j)});
+        }
     }
   }
 
-  if (!hasModifiedFiles) {
-    return undefined;
-  }
-
-  return modifications;
-}
-
-/**
- * Computes a diff in the unified format. The only difference is that the header is omitted
- * because it will always assume that you're comparing two versions of the same file and
- * it allows us to avoid the extra characters we send back to the llm.
- *
- * @see https://www.gnu.org/software/diffutils/manual/html_node/Unified-Format.html
- */
-export function diffFiles(fileName: string, oldFileContent: string, newFileContent: string) {
-  let unifiedDiff = createTwoFilesPatch(fileName, fileName, oldFileContent, newFileContent);
-
-  const patchHeaderEnd = `--- ${fileName}\n+++ ${fileName}\n`;
-  const headerEndIndex = unifiedDiff.indexOf(patchHeaderEnd);
-
-  if (headerEndIndex >= 0) {
-    unifiedDiff = unifiedDiff.slice(headerEndIndex + patchHeaderEnd.length);
-  }
-
-  if (unifiedDiff === '') {
-    return undefined;
-  }
-
-  return unifiedDiff;
-}
-
-/**
- * Converts the unified diff to HTML.
- *
- * Example:
- *
- * ```html
- * <bolt_file_modifications>
- * <diff path="/home/project/index.js">
- * - console.log('Hello, World!');
- * + console.log('Hello, Bolt!');
- * </diff>
- * </bolt_file_modifications>
- * ```
- */
-export function fileModificationsToHTML(modifications: FileModifications) {
-  const entries = Object.entries(modifications);
-
-  if (entries.length === 0) {
-    return undefined;
-  }
-
-  const result: string[] = [`<${MODIFICATIONS_TAG_NAME}>`];
-
-  for (const [filePath, { type, content }] of entries) {
-    result.push(`<${type} path=${JSON.stringify(filePath)}>`, content, `</${type}>`);
-  }
-
-  result.push(`</${MODIFICATIONS_TAG_NAME}>`);
-
-  return result.join('\n');
+  return result;
 }
