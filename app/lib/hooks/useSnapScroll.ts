@@ -1,52 +1,38 @@
-import { useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef } from "react";
 
-export function useSnapScroll() {
-  const autoScrollRef = useRef(true);
-  const scrollNodeRef = useRef<HTMLDivElement>();
-  const onScrollRef = useRef<() => void>();
-  const observerRef = useRef<ResizeObserver>();
+export const useSnapScroll = () => {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const messageRef = useCallback((node: HTMLDivElement | null) => {
-    if (node) {
-      const observer = new ResizeObserver(() => {
-        if (autoScrollRef.current && scrollNodeRef.current) {
-          const { scrollHeight, clientHeight } = scrollNodeRef.current;
-          const scrollTarget = scrollHeight - clientHeight;
+  const snapToBottom = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+  }, []);
 
-          scrollNodeRef.current.scrollTo({
-            top: scrollTarget,
-          });
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!scrollContainerRef.current) return;
+      // scroll snap-y isn't perfect, so we need to manually snap to the bottom when scrolling down
+      const isAtBottom =
+        scrollContainerRef.current.scrollTop + scrollContainerRef.current.clientHeight >=
+        scrollContainerRef.current.scrollHeight - 200;
+
+
+        if (isAtBottom) {
+           snapToBottom();
         }
-      });
+    };
 
-      observer.observe(node);
-    } else {
-      observerRef.current?.disconnect();
-      observerRef.current = undefined;
+    const scrollContainer = scrollContainerRef.current;
+    if (scrollContainer) {
+      scrollContainer.addEventListener("scroll", handleScroll);
     }
-  }, []);
 
-  const scrollRef = useCallback((node: HTMLDivElement | null) => {
-    if (node) {
-      onScrollRef.current = () => {
-        const { scrollTop, scrollHeight, clientHeight } = node;
-        const scrollTarget = scrollHeight - clientHeight;
-
-        autoScrollRef.current = Math.abs(scrollTop - scrollTarget) <= 10;
-      };
-
-      node.addEventListener('scroll', onScrollRef.current);
-
-      scrollNodeRef.current = node;
-    } else {
-      if (onScrollRef.current) {
-        scrollNodeRef.current?.removeEventListener('scroll', onScrollRef.current);
+    return () => {
+      if (scrollContainer) {
+        scrollContainer.removeEventListener("scroll", handleScroll);
       }
+    };
+  }, [snapToBottom]);
 
-      scrollNodeRef.current = undefined;
-      onScrollRef.current = undefined;
-    }
-  }, []);
-
-  return [messageRef, scrollRef];
-}
+  return { scrollContainerRef, snapToBottom };
+};
