@@ -1,42 +1,33 @@
-// app/lib/stores/settings.ts
-
-import { create } from 'zustand';
+import { atom } from "nanostores";
+import { getPersistedItem, persistAtom } from "../persistence";
 import { Theme } from "@/app/types/theme";
-import { workbenchStore } from './workbench';
 
-export interface Shortcut {
-  key: string;
-  ctrlKey?: boolean;
-  shiftKey?: boolean;
-  altKey?: boolean;
-  metaKey?: boolean;
-  ctrlOrMetaKey?: boolean;
-  action: () => void;
-}
-
-export interface Shortcuts {
-  toggleTerminal: Shortcut;
-  // add other shortcuts here
-}
-
-export interface SettingsState {
+export type SettingsState = {
   theme: Theme;
-  setTheme: (theme: Theme) => void;
-  shortcuts: Shortcuts;
-  setShortcuts: (shortcuts: Shortcuts) => void;
+  chatSidebarOpen: boolean;
+};
+
+const initial: SettingsState = {
+    theme: "dark",
+    chatSidebarOpen: false,
+};
+
+export const $settings = atom<SettingsState>(getPersistedItem("settings", initial));
+
+export const setTheme = (theme: Theme) => {
+  $settings.set({
+    ...$settings.get(),
+    theme,
+  });
+};
+
+export const setChatSidebarOpen = (open: boolean) => {
+    $settings.set({
+      ...$settings.get(),
+      chatSidebarOpen: open
+    })
 }
 
+persistAtom($settings, "settings");
 
-
-export const useSettings = create<SettingsState>((set) => ({
-  theme: "light",
-  setTheme: (theme) => set({ theme }),
-  shortcuts: {
-    toggleTerminal: {
-      key: 'j',
-      ctrlOrMetaKey: true,
-      action: () => workbenchStore.toggleTerminal(),
-    },
-  },
-  setShortcuts: (shortcuts) => set({ shortcuts }),
-}));
+export type SettingsStore = typeof $settings;

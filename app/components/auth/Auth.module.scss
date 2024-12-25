@@ -1,32 +1,56 @@
-.auth {
+.auth-dialog {
   display: flex;
   flex-direction: column;
+  gap: 1rem;
+  max-width: 30rem;
+  width: 100%;
+}
+
+.description {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.button {
+  margin-top: 1rem;
+  display: flex;
   align-items: center;
-  gap: var(--size-4);
-  padding: var(--size-8) var(--size-4);
+  justify-content: center;
+  gap: 0.5rem;
   width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
-  > h2 {
-    text-align: center;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background-color: transparent;
+  color: var(--text-primary);
+  transition:
+    border-color 0.2s ease-in-out,
+    background-color 0.2s ease-in-out;
+
+  &:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--border-primary);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
 
-.buttonContainer {
-    display: flex;
-    gap: var(--size-2);
-    align-items: center;
+.error {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background-color: var(--error-bg);
+  color: var(--error-text);
 }
 
-
-.input {
-  padding: var(--size-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  width: 100%;
-  background-color: var(--color-background-input);
-  &:focus {
-    outline: none;
-      border-color: var(--color-accent);
-  }
+.loading-message {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }

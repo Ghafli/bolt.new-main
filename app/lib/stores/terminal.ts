@@ -1,40 +1,36 @@
-import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
-import { atom, type WritableAtom } from 'nanostores';
-import type { ITerminal } from '~/types/terminal';
-import { newShellProcess } from '~/utils/shell';
-import { coloredText } from '~/utils/terminal';
+import { atom } from "nanostores";
+import { WebContainerProcess } from "@webcontainer/api";
+import { getPersistedItem, persistAtom } from "../persistence";
 
-export class TerminalStore {
-  #webcontainer: Promise<WebContainer>;
-  #terminals: Array<{ terminal: ITerminal; process: WebContainerProcess }> = [];
+export type TerminalState = {
+  processes: WebContainerProcess[];
+};
 
-  showTerminal: WritableAtom<boolean> = import.meta.hot?.data.showTerminal ?? atom(false);
+const initial: TerminalState = {
+  processes: [],
+};
 
-  constructor(webcontainerPromise: Promise<WebContainer>) {
-    this.#webcontainer = webcontainerPromise;
+export const $terminal = atom<TerminalState>(getPersistedItem("terminal", initial));
 
-    if (import.meta.hot) {
-      import.meta.hot.data.showTerminal = this.showTerminal;
-    }
-  }
+export const addProcess = (process: WebContainerProcess) => {
+  $terminal.set({
+    ...$terminal.get(),
+    processes: [...$terminal.get().processes, process],
+  });
+};
 
-  toggleTerminal(value?: boolean) {
-    this.showTerminal.set(value !== undefined ? value : !this.showTerminal.get());
-  }
+export const removeProcess = (process: WebContainerProcess) => {
+  $terminal.set({
+    ...$terminal.get(),
+    processes: $terminal.get().processes.filter((p) => p !== process),
+  });
+};
 
-  async attachTerminal(terminal: ITerminal) {
-    try {
-      const shellProcess = await newShellProcess(await this.#webcontainer, terminal);
-      this.#terminals.push({ terminal, process: shellProcess });
-    } catch (error: any) {
-      terminal.write(coloredText.red('Failed to spawn shell\n\n') + error.message);
-      return;
-    }
-  }
-
-  onTerminalResize(cols: number, rows: number) {
-    for (const { process } of this.#terminals) {
-      process.resize({ cols, rows });
-    }
-  }
+export const clearProcesses = () => {
+    $terminal.set({
+        processes: [],
+    })
 }
+
+persistAtom($terminal, "terminal");
+export type TerminalStore = typeof $terminal;

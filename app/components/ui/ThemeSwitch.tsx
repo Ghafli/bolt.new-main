@@ -1,29 +1,14 @@
-import { useStore } from '@nanostores/react';
-import { memo, useEffect, useState } from 'react';
-import { themeStore, toggleTheme } from '~/lib/stores/theme';
+import { useTheme } from '~/app/lib/stores/theme';
+import { MoonIcon, SunIcon } from '~/icons';
 import { IconButton } from './IconButton';
 
-interface ThemeSwitchProps {
-  className?: string;
-}
-
-export const ThemeSwitch = memo(({ className }: ThemeSwitchProps) => {
-  const theme = useStore(themeStore);
-  const [domLoaded, setDomLoaded] = useState(false);
-
-  useEffect(() => {
-    setDomLoaded(true);
-  }, []);
-
+export function ThemeSwitch() {
+  const { theme, toggleTheme } = useTheme();
   return (
-    domLoaded && (
-      <IconButton
-        className={className}
-        icon={theme === 'dark' ? 'i-ph-sun-dim-duotone' : 'i-ph-moon-stars-duotone'}
-        size="xl"
-        title="Toggle Theme"
-        onClick={toggleTheme}
-      />
-    )
+    <IconButton
+      onClick={toggleTheme}
+      ariaLabel="Toggle theme"
+      icon={theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+    />
   );
-});
+}

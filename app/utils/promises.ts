@@ -1,19 +1,18 @@
-export function withResolvers<T>(): PromiseWithResolvers<T> {
-  if (typeof Promise.withResolvers === 'function') {
-    return Promise.withResolvers();
-  }
-
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: any) => void;
-
-  const promise = new Promise<T>((_resolve, _reject) => {
-    resolve = _resolve;
-    reject = _reject;
+export function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
+}
 
-  return {
-    resolve,
-    reject,
-    promise,
-  };
+
+export async function withTimeout<T>(promise: Promise<T>, ms: number, message = 'Promise timed out'): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            reject(new Error(message));
+        }, ms);
+
+        promise.then(resolve, reject).finally(() => {
+            clearTimeout(timeoutId);
+        });
+    });
 }

@@ -1,27 +1,11 @@
-import { memo, useEffect, useState } from 'react';
+import styles from './LoadingDots.module.scss';
 
-interface LoadingDotsProps {
-  text: string;
-}
-
-export const LoadingDots = memo(({ text }: LoadingDotsProps) => {
-  const [dotCount, setDotCount] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDotCount((prevDotCount) => (prevDotCount + 1) % 4);
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, []);
-
+export function LoadingDots() {
   return (
-    <div className="flex justify-center items-center h-full">
-      <div className="relative">
-        <span>{text}</span>
-        <span className="absolute left-[calc(100%-12px)]">{'.'.repeat(dotCount)}</span>
-        <span className="invisible">...</span>
-      </div>
+    <div className={styles.container}>
+      <span className={styles.dot}></span>
+      <span className={styles.dot}></span>
+      <span className={styles.dot}></span>
     </div>
   );
-});
+}

@@ -1,64 +1,59 @@
-import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useRef, useState } from 'react';
-import { type ChatHistoryItem } from '~/lib/persistence';
+import { FunctionComponent } from "react";
+import { useChatStore } from "~/app/lib/stores/chat";
+import { useWorkbenchStore } from "~/app/lib/stores/workbench";
+import { classNames } from "~/app/utils/classNames";
 
-interface HistoryItemProps {
-  item: ChatHistoryItem;
-  onDelete?: (event: React.UIEvent) => void;
+export interface Props {
+  id: string;
+  description: string;
+  date: string;
+  isActive: boolean;
 }
 
-export function HistoryItem({ item, onDelete }: HistoryItemProps) {
-  const [hovering, setHovering] = useState(false);
-  const hoverRef = useRef<HTMLDivElement>(null);
+const HistoryItem: FunctionComponent<Props> = ({
+  id,
+  description,
+  date,
+  isActive,
+}) => {
+  const { openChat, setActiveChatId } = useChatStore();
+  const { sideBarOpen } = useWorkbenchStore();
 
-  useEffect(() => {
-    let timeout: NodeJS.Timeout | undefined;
-
-    function mouseEnter() {
-      setHovering(true);
-
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-    }
-
-    function mouseLeave() {
-      setHovering(false);
-    }
-
-    hoverRef.current?.addEventListener('mouseenter', mouseEnter);
-    hoverRef.current?.addEventListener('mouseleave', mouseLeave);
-
-    return () => {
-      hoverRef.current?.removeEventListener('mouseenter', mouseEnter);
-      hoverRef.current?.removeEventListener('mouseleave', mouseLeave);
-    };
-  }, []);
+  const onClick = () => {
+    setActiveChatId(id);
+    openChat();
+  };
 
   return (
-    <div
-      ref={hoverRef}
-      className="group rounded-md text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 overflow-hidden flex justify-between items-center px-2 py-1"
+    <button
+      onClick={onClick}
+      className={classNames(
+        "group flex w-full cursor-pointer flex-col items-start gap-1 rounded-sm p-2 hover:bg-color-bg-3",
+        isActive && "bg-color-bg-2",
+        !sideBarOpen && "opacity-0",
+        "transition-opacity duration-200",
+      )}
     >
-      <a href={`/chat/${item.urlId}`} className="flex w-full relative truncate block">
-        {item.description}
-        <div className="absolute right-0 z-1 top-0 bottom-0 bg-gradient-to-l from-bolt-elements-background-depth-2 group-hover:from-bolt-elements-background-depth-3 to-transparent w-10 flex justify-end group-hover:w-15 group-hover:from-45%">
-          {hovering && (
-            <div className="flex items-center p-1 text-bolt-elements-textSecondary hover:text-bolt-elements-item-contentDanger">
-              <Dialog.Trigger asChild>
-                <button
-                  className="i-ph:trash scale-110"
-                  onClick={(event) => {
-                    // we prevent the default so we don't trigger the anchor above
-                    event.preventDefault();
-                    onDelete?.(event);
-                  }}
-                />
-              </Dialog.Trigger>
-            </div>
+      <div className="flex w-full items-center justify-between">
+        <div
+          className={classNames(
+            "font-medium text-color-text-1 group-hover:underline",
+            isActive && "font-semibold",
           )}
+        >
+          {description}
         </div>
-      </a>
-    </div>
+        <div
+          className={classNames(
+            "text-color-text-4 text-xs",
+            isActive && "text-color-text-2",
+          )}
+        >
+          {date}
+        </div>
+      </div>
+    </button>
   );
-}
+};
+
+export default HistoryItem;

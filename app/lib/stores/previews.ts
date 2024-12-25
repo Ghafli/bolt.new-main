@@ -1,49 +1,35 @@
-import type { WebContainer } from '@webcontainer/api';
-import { atom } from 'nanostores';
+import { atom } from "nanostores";
+import { getPersistedItem, persistAtom } from "../persistence";
 
-export interface PreviewInfo {
-  port: number;
-  ready: boolean;
-  baseUrl: string;
-}
+export type PreviewState = {
+  ports: Record<number, string>;
+};
 
-export class PreviewsStore {
-  #availablePreviews = new Map<number, PreviewInfo>();
-  #webcontainer: Promise<WebContainer>;
+const initial: PreviewState = {
+  ports: {},
+};
 
-  previews = atom<PreviewInfo[]>([]);
+export const $previews = atom<PreviewState>(getPersistedItem("previews", initial));
 
-  constructor(webcontainerPromise: Promise<WebContainer>) {
-    this.#webcontainer = webcontainerPromise;
+export const addPort = (port: number, url: string) => {
+  $previews.set({
+    ...$previews.get(),
+    ports: {
+      ...$previews.get().ports,
+      [port]: url,
+    },
+  });
+};
 
-    this.#init();
-  }
-
-  async #init() {
-    const webcontainer = await this.#webcontainer;
-
-    webcontainer.on('port', (port, type, url) => {
-      let previewInfo = this.#availablePreviews.get(port);
-
-      if (type === 'close' && previewInfo) {
-        this.#availablePreviews.delete(port);
-        this.previews.set(this.previews.get().filter((preview) => preview.port !== port));
-
-        return;
-      }
-
-      const previews = this.previews.get();
-
-      if (!previewInfo) {
-        previewInfo = { port, ready: type === 'open', baseUrl: url };
-        this.#availablePreviews.set(port, previewInfo);
-        previews.push(previewInfo);
-      }
-
-      previewInfo.ready = type === 'open';
-      previewInfo.baseUrl = url;
-
-      this.previews.set([...previews]);
+export const removePort = (port: number) => {
+    const { [port]: _, ...rest } = $previews.get().ports;
+    $previews.set({
+      ...$previews.get(),
+      ports: rest
     });
-  }
 }
+
+
+persistAtom($previews, "previews");
+
+export type PreviewStore = typeof $previews;

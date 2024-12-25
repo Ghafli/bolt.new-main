@@ -1,20 +1,17 @@
-import { memo } from 'react';
-import { classNames } from '~/utils/classNames';
+import { forwardRef } from 'react';
+import styles from './PanelHeader.module.scss';
+import { classNames } from '~/app/utils/classNames';
 
-interface PanelHeaderProps {
+type PanelHeaderProps = {
+  children?: React.ReactNode;
   className?: string;
-  children: React.ReactNode;
-}
-
-export const PanelHeader = memo(({ className, children }: PanelHeaderProps) => {
-  return (
-    <div
-      className={classNames(
-        'flex items-center gap-2 bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary border-b border-bolt-elements-borderColor px-4 py-1 min-h-[34px] text-sm',
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-});
+};
+export const PanelHeader = forwardRef<HTMLDivElement, PanelHeaderProps>(
+  ({ children, className }, ref) => {
+    return (
+      <div ref={ref} className={classNames(styles.panelHeader, className)}>
+        {children}
+      </div>
+    );
+  },
+);

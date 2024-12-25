@@ -1,20 +1,34 @@
-// app/components/ui/IconButton.module.scss
-
 .iconButton {
-  background: none;
   border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   cursor: pointer;
-  font-size: 1.2rem;
-  padding: 0.5rem;
-  border-radius: 5px;
-  transition: background-color 0.2s ease;
-
+  border-radius: 4px;
+  transition: background-color 0.2s ease-in-out;
   &:hover {
-    background-color: rgba(0, 0, 0, 0.1); /* Light hover effect */
+    background-color: var(--color-bg-hover);
   }
+  &:active {
+    background-color: var(--color-bg-active);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  svg {
+    display: block;
+    width: 20px;
+    height: 20px;
+  }
+}
 
-  &:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3); /* Focus outline */
+.small {
+  svg {
+    width: 16px;
+    height: 16px;
   }
 }

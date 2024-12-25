@@ -1,17 +1,26 @@
-.Toastify__toast {
-  --at-apply: shadow-md;
+@import "../variables.scss";
 
-  background-color: var(--bolt-elements-bg-depth-2);
-  color: var(--bolt-elements-textPrimary);
-  border: 1px solid var(--bolt-elements-borderColor);
+.toast-container {
+  position: fixed;
+  top: $space-md;
+  right: $space-md;
+  z-index: $z-index-toast;
+  display: flex;
+  flex-direction: column;
+  gap: $space-xs;
 }
 
-.Toastify__close-button {
-  color: var(--bolt-elements-item-contentDefault);
-  opacity: 1;
-  transition: none;
+.toast {
+  background-color: var(--toast-bg);
+  color: var(--toast-color);
+  padding: $space-xs $space-sm;
+  border-radius: $radius-sm;
+  border: 1px solid var(--border-color);
+  min-width: 300px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
 
-  &:hover {
-    color: var(--bolt-elements-item-contentActive);
-  }
+.toast-error {
+  background-color: var(--toast-error-bg);
+  color: var(--toast-error-color);
 }

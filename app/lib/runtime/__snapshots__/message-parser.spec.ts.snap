@@ -1,220 +1,90 @@
-// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+// Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (0) > onActionClose 1`] = `
+exports[`message parser command parsing should parse commands with arguments 1`] = `
 {
-  "action": {
-    "content": "npm install",
-    "type": "shell",
+  "command": "run",
+  "arguments": [
+    "npm",
+    "install",
+    "react",
+  ],
+}
+`;
+
+exports[`message parser command parsing should parse commands with no arguments 1`] = `
+{
+  "command": "ls",
+  "arguments": [],
+}
+`;
+
+exports[`message parser command parsing should parse commands with string argument 1`] = `
+{
+  "command": "cd",
+  "arguments": [
+    "/some/path/here",
+  ],
+}
+`;
+
+exports[`message parser command parsing should parse multiple commands with arguments 1`] = `
+[
+  {
+    "command": "run",
+    "arguments": [
+      "npm",
+      "install",
+      "react",
+    ],
   },
-  "actionId": "0",
-  "artifactId": "artifact_1",
-  "messageId": "message_1",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (0) > onActionOpen 1`] = `
-{
-  "action": {
-    "content": "",
-    "type": "shell",
+  {
+    "command": "ls",
+    "arguments": [],
   },
-  "actionId": "0",
-  "artifactId": "artifact_1",
-  "messageId": "message_1",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (0) > onArtifactClose 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (0) > onArtifactOpen 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (1) > onActionClose 1`] = `
-{
-  "action": {
-    "content": "npm install",
-    "type": "shell",
+  {
+    "command": "cd",
+    "arguments": [
+      "/some/path/here",
+    ],
   },
-  "actionId": "0",
-  "artifactId": "artifact_1",
-  "messageId": "message_1",
-}
+]
 `;
 
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (1) > onActionClose 2`] = `
-{
-  "action": {
-    "content": "some content
-",
-    "filePath": "index.js",
-    "type": "file",
+exports[`message parser command parsing should parse multiple commands with no arguments 1`] = `
+[
+  {
+    "command": "ls",
+    "arguments": [],
   },
-  "actionId": "1",
-  "artifactId": "artifact_1",
-  "messageId": "message_1",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (1) > onActionOpen 1`] = `
-{
-  "action": {
-    "content": "",
-    "type": "shell",
+  {
+    "command": "pwd",
+    "arguments": [],
   },
-  "actionId": "0",
-  "artifactId": "artifact_1",
-  "messageId": "message_1",
+]
+`;
+
+exports[`message parser command parsing should parse simple command 1`] = `
+{
+  "command": "ls",
+  "arguments": [],
 }
 `;
 
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (1) > onActionOpen 2`] = `
+exports[`message parser command parsing should parse simple command with args 1`] = `
 {
-  "action": {
-    "content": "",
-    "filePath": "index.js",
-    "type": "file",
-  },
-  "actionId": "1",
-  "artifactId": "artifact_1",
-  "messageId": "message_1",
+  "command": "npm",
+  "arguments": [
+    "install",
+    "react",
+  ],
 }
 `;
 
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (1) > onArtifactClose 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
+exports[`message parser command parsing should return null if no command 1`] = `null`;
 
-exports[`StreamingMessageParser > valid artifacts with actions > should correctly parse chunks and strip out bolt artifacts (1) > onArtifactOpen 1`] = `
+exports[`message parser command parsing should trim input 1`] = `
 {
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (0) > onArtifactClose 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (0) > onArtifactOpen 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (1) > onArtifactClose 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (1) > onArtifactOpen 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (2) > onArtifactClose 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (2) > onArtifactOpen 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (3) > onArtifactClose 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (3) > onArtifactOpen 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (4) > onArtifactClose 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (4) > onArtifactOpen 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (5) > onArtifactClose 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (5) > onArtifactOpen 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (6) > onArtifactClose 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
-}
-`;
-
-exports[`StreamingMessageParser > valid artifacts without actions > should correctly parse chunks and strip out bolt artifacts (6) > onArtifactOpen 1`] = `
-{
-  "id": "artifact_1",
-  "messageId": "message_1",
-  "title": "Some title",
+  "command": "ls",
+  "arguments": [],
 }
 `;

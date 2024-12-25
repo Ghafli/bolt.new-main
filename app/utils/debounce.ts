@@ -1,17 +1,17 @@
-export function debounce<Args extends any[]>(fn: (...args: Args) => void, delay = 100) {
-  if (delay === 0) {
-    return fn;
-  }
+export function debounce<T extends (...args: any[]) => void>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-  let timer: number | undefined;
+  return (...args: Parameters<T>) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
 
-  return function <U>(this: U, ...args: Args) {
-    const context = this;
-
-    clearTimeout(timer);
-
-    timer = window.setTimeout(() => {
-      fn.apply(context, args);
+    timeoutId = setTimeout(() => {
+      fn(...args);
+      timeoutId = undefined;
     }, delay);
   };
 }

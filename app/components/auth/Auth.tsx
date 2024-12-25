@@ -1,49 +1,47 @@
 import { useState } from 'react';
+import { Dialog } from '~/app/components/ui/Dialog';
+import { useAuthStore } from '~/app/lib/stores/auth';
 import styles from './Auth.module.scss';
-import { useAuth } from '@/app/lib/stores/auth';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/app/components/ui/Button';
-import { Input } from '@/app/components/ui/Input';
+import { LoadingDots } from '../ui/LoadingDots';
 
 export function Auth() {
-  const { login, user, loading } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+  const auth = useAuthStore((state) => state);
 
-    if(user) {
-        navigate('/');
-        return null;
+  const handleSignIn = async () => {
+    setError(null);
+    try {
+      await auth.signIn();
+    } catch (error: any) {
+      setError(error?.message || 'Failed to sign in');
     }
-  const handleLogin = async () => {
-    if(!email || !password) {
-      return;
-    }
-    await login(email, password);
   };
 
   return (
-    <div className={styles.auth}>
-      <h2>Sign In</h2>
-      <Input
-        placeholder="Email"
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        disabled={loading}
-      />
-      <Input
-        placeholder="Password"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        disabled={loading}
-      />
-      <div className={styles.buttonContainer}>
-        <Button onClick={handleLogin} disabled={loading}>
-          Sign In
-        </Button>
+    <Dialog
+      open={!auth.isAuthenticated}
+      onClose={() => {}}
+      title="Authentication"
+    >
+      <div className={styles['auth-dialog']}>
+        <p className={styles.description}>
+          Sign in to start using Bolt. Your changes will be saved to the cloud.
+        </p>
+        <button
+          className={styles.button}
+          onClick={handleSignIn}
+          disabled={auth.isLoading}
+        >
+          {auth.isLoading ? (
+            <span className={styles['loading-message']}>
+              Signing In <LoadingDots />
+            </span>
+          ) : (
+            'Sign in with GitHub'
+          )}
+        </button>
+        {error && <div className={styles.error}>{error}</div>}
       </div>
-    </div>
+    </Dialog>
   );
 }

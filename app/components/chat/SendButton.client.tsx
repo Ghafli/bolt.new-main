@@ -1,33 +1,26 @@
-import { AnimatePresence, cubicBezier, motion } from 'framer-motion';
+import styles from './BaseChat.module.scss';
 
-interface SendButtonProps {
-  show: boolean;
-  isStreaming?: boolean;
-  onClick?: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
-}
+type Props = {
+  type: 'submit' | 'button';
+  disabled?: boolean;
+};
 
-const customEasingFn = cubicBezier(0.4, 0, 0.2, 1);
-
-export function SendButton({ show, isStreaming, onClick }: SendButtonProps) {
+export function SendButton({ type, disabled }: Props) {
   return (
-    <AnimatePresence>
-      {show ? (
-        <motion.button
-          className="absolute flex justify-center items-center top-[18px] right-[22px] p-1 bg-accent-500 hover:brightness-94 color-white rounded-md w-[34px] h-[34px] transition-theme"
-          transition={{ ease: customEasingFn, duration: 0.17 }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
-          onClick={(event) => {
-            event.preventDefault();
-            onClick?.(event);
-          }}
-        >
-          <div className="text-lg">
-            {!isStreaming ? <div className="i-ph:arrow-right"></div> : <div className="i-ph:stop-circle-bold"></div>}
-          </div>
-        </motion.button>
-      ) : null}
-    </AnimatePresence>
+    <button type={type} disabled={disabled} className={styles.sendButton}>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M13 5l7 7-7 7M5 5l7 7-7 7"
+        />
+      </svg>
+    </button>
   );
 }

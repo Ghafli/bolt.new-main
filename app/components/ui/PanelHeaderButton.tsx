@@ -1,33 +1,20 @@
-import { memo } from 'react';
-import { classNames } from '~/utils/classNames';
+import { forwardRef } from 'react';
+import styles from './PanelHeaderButton.module.scss';
+import { classNames } from '~/app/utils/classNames';
 
-interface PanelHeaderButtonProps {
+type PanelHeaderButtonProps = {
+  children: React.ReactNode;
   className?: string;
-  disabledClassName?: string;
-  disabled?: boolean;
-  children: string | JSX.Element | Array<JSX.Element | string>;
-  onClick?: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
-}
+  onClick?: () => void;
+};
 
-export const PanelHeaderButton = memo(
-  ({ className, disabledClassName, disabled = false, children, onClick }: PanelHeaderButtonProps) => {
+export const PanelHeaderButton = forwardRef<HTMLButtonElement, PanelHeaderButtonProps>(
+  ({ children, className, onClick }, ref) => {
     return (
       <button
-        className={classNames(
-          'flex items-center shrink-0 gap-1.5 px-1.5 rounded-md py-0.5 text-bolt-elements-item-contentDefault bg-transparent enabled:hover:text-bolt-elements-item-contentActive enabled:hover:bg-bolt-elements-item-backgroundActive disabled:cursor-not-allowed',
-          {
-            [classNames('opacity-30', disabledClassName)]: disabled,
-          },
-          className,
-        )}
-        disabled={disabled}
-        onClick={(event) => {
-          if (disabled) {
-            return;
-          }
-
-          onClick?.(event);
-        }}
+        ref={ref}
+        className={classNames(styles.panelHeaderButton, className)}
+        onClick={onClick}
       >
         {children}
       </button>

@@ -1,171 +1,87 @@
-// app/lib/webcontainer/index.ts
 import { WebContainer } from "@webcontainer/api";
-import { terminal } from "@/app/lib/stores/terminal";
-import { Files } from "@/app/lib/stores/files";
-import { getFilesFromWebContainer } from "@/app/utils/shell";
-import { useToast } from "../stores/toast";
+import { writable, type Writable } from "svelte/store";
+import { authenticateWebcontainer } from "./auth.client";
+import { api } from "~/app/utils/api";
+import { toast } from "../stores/toast";
+import {
+  DEFAULT_FILES,
+  type FileSystemTree,
+  type WorkerConfiguration,
+} from "./types";
 
-let webcontainerInstance: WebContainer | null = null;
-let sessionId: string | null = null;
-const WEBCONTAINER_STORAGE_KEY = "webcontainer-data";
-let forwardedPorts: number[] = [];
+export const webcontainerInstance: Writable<WebContainer | null> =
+  writable(null);
 
-const getWebcontainerInstance = async () => {
-    if (webcontainerInstance) {
-        return webcontainerInstance;
+export const webcontainerStatus: Writable<
+  "idle" | "loading" | "ready" | "error"
+> = writable("idle");
+
+let webcontainer: WebContainer;
+
+export async function startWebcontainer({
+  files = DEFAULT_FILES,
+  workerConfig,
+}: {
+  files?: FileSystemTree;
+  workerConfig?: WorkerConfiguration;
+} = {}) {
+  webcontainerStatus.set("loading");
+  try {
+    if (webcontainer) {
+      await webcontainer.teardown();
     }
-    try {
-        const persistedSessionId = sessionStorage.getItem("sessionId");
-        const options: any = {
-            ...(persistedSessionId ? { sessionId: persistedSessionId } : {}),
-            ...(typeof window !== 'undefined' &&
-            window.location.origin.startsWith('http://localhost')
-                ? { disableServiceWorker: true }
-                : {}),
-        };
-        if (persistedSessionId) {
-            sessionId = persistedSessionId;
-            webcontainerInstance = await WebContainer.resume(options);
-             console.log("WebContainer resumed from session:", persistedSessionId);
-        } else {
-            const persistedData = localStorage.getItem(WEBCONTAINER_STORAGE_KEY);
-            webcontainerInstance = await WebContainer.boot(options);
+    webcontainer = await WebContainer.boot();
+    webcontainerInstance.set(webcontainer);
 
-            if (persistedData) {
-                try {
-                    const buffer = new Uint8Array(JSON.parse(persistedData).data);
-                    await webcontainerInstance.fs.import(buffer);
-                } catch (e) {
-                   console.error("Error restoring from localStorage: ", e);
-                   localStorage.removeItem(WEBCONTAINER_STORAGE_KEY);
-                }
-            }
-
-            sessionStorage.setItem("sessionId", webcontainerInstance.sessionId);
-        }
-
-        sessionId = webcontainerInstance.sessionId;
-
-        return webcontainerInstance;
-    } catch (e) {
-        console.error("Error getting WebContainer instance: ", e);
-        return null;
+    if (workerConfig?.bindings) {
+      // inject the bindings into the worker
+      const auth = await authenticateWebcontainer();
+      if (auth) {
+        await webcontainer.fs.writeFile(
+          "/bindings.sh",
+          `export BINDINGS='${JSON.stringify(workerConfig.bindings)}'
+        export AUTH_TOKEN='${auth}'
+        `
+        );
+        await webcontainer.exec({
+          command: "bash",
+          args: ["/bindings.sh"],
+        });
+      }
     }
-};
 
-const saveState = async () => {
-    const webContainer = await getWebcontainerInstance();
-    if (!webContainer) {
-        console.error("WebContainer not initialized");
-        return;
-    }
-    try {
-        const data = await webContainer.fs.export();
-        const json = JSON.stringify({ data: Array.from(data) });
-        localStorage.setItem(WEBCONTAINER_STORAGE_KEY, json);
-    } catch (e) {
-        console.error("Error saving to localStorage: ", e);
-    }
-};
+    await webcontainer.mount(files);
 
-export const useWebContainer = () => {
-    const start = async () => {
-        const webContainer = await getWebcontainerInstance();
-        if (!webContainer) {
-            return;
-        }
+    const installProcess = await webcontainer.exec({
+      command: "pnpm",
+      args: ["install"],
+    });
 
-        const terminalProcess = await webContainer.spawn("jsh");
-        terminal.setTerminalProcess(terminalProcess);
-        try{
-            const newFiles = await getFiles();
-            if(newFiles){
-                setFiles(newFiles);
-            }
-        }
-         catch(e){
-            console.error("Error getting file system", e)
-        }
-    };
-    const beforeUnload = () => {
-        saveState();
-    };
+    // this resolves when the install is done
+    await installProcess.exit;
 
-    if (typeof window !== 'undefined') {
-        window.addEventListener('beforeunload', beforeUnload);
-    }
-    const writeFile = async (filePath: string, content: Uint8Array) => {
-        const webContainer = await getWebcontainerInstance();
-        if (!webContainer) {
-            console.error("WebContainer not initialized");
-            return;
-        }
+    webcontainerStatus.set("ready");
+    return webcontainer;
+  } catch (e) {
+    webcontainerStatus.set("error");
+    console.error("Failed to start webcontainer", e);
+    toast.error("Failed to start webcontainer");
+    throw e;
+  }
+}
 
-        try {
-            await webContainer.fs.writeFile(filePath, content);
-            await saveState();
-        } catch (error) {
-            console.error("Error writing file:", error);
-        }
-    };
+export async function stopWebcontainer() {
+  if (!webcontainer) {
+    return;
+  }
+  webcontainerStatus.set("idle");
+  await webcontainer.teardown();
+  webcontainerInstance.set(null);
+}
 
-    const getFiles = async (): Promise<Files | undefined> => {
-        const webContainer = await getWebcontainerInstance();
-        if (!webContainer) {
-            console.error("WebContainer not initialized");
-            return;
-        }
-
-        try {
-            return await getFilesFromWebContainer(webContainer);
-        } catch (error) {
-            console.error("Error getting files from WebContainer: ", error);
-        }
-    };
-    const getResourceUsage = async () => {
-        const webContainer = await getWebcontainerInstance();
-        if (!webContainer) {
-             console.error("WebContainer not initialized");
-            return;
-        }
-        try {
-            const usage = await webContainer.getFsStats();
-            return { cpu: usage.cpu, memory: usage.memory };
-        } catch (error) {
-           console.error("Error getting resource usage:", error);
-            return null;
-        }
-    };
-
-    const exposePort = async (port: number) => {
-        const webContainer = await getWebcontainerInstance();
-        if (!webContainer) {
-            console.error("WebContainer not initialized");
-            return;
-        }
-        if (forwardedPorts.includes(port)) {
-            return;
-        }
-        try {
-            await webContainer.expose({ port: port });
-            forwardedPorts.push(port);
-        } catch (error) {
-            console.error("Error exposing port:", error);
-        }
-    };
-
-    const getExposedPorts = () => {
-        return forwardedPorts;
-    };
-    const { setToast } = useToast();
-    return {
-        start,
-        writeFile,
-        getFiles,
-        sessionId,
-        getResourceUsage,
-        exposePort,
-        getExposedPorts,
-        setToast,
-    };
-};
+export async function updateWebcontainerFiles(files: FileSystemTree) {
+  if (!webcontainer) {
+    return;
+  }
+  await webcontainer.mount(files);
+}

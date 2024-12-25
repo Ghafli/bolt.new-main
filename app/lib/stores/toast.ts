@@ -1,16 +1,35 @@
-// app/lib/stores/toast.ts
-import { create } from "zustand";
+import { atom } from "nanostores";
+import { v4 } from "uuid";
 
-interface ToastState {
-    message: string | null;
-    type: "success" | "error" | "info";
-    showToast: ({ message, type }: { message: string, type: "success" | "error" | "info" }) => void;
-   clearToast: () => void;
+export type ToastMessage = {
+    id: string;
+    message: string;
+    type: 'success' | 'error' | 'info';
+};
+
+export type ToastState = {
+  messages: ToastMessage[];
+};
+
+const initial: ToastState = {
+  messages: [],
+};
+
+export const $toast = atom<ToastState>(initial);
+
+export const addToast = (message: Omit<ToastMessage, 'id'>) => {
+    $toast.set({
+        ...$toast.get(),
+        messages: [...$toast.get().messages, { ...message, id: v4() }]
+    })
+};
+
+
+export const removeToast = (id: string) => {
+    $toast.set({
+        ...$toast.get(),
+        messages: $toast.get().messages.filter(message => message.id !== id)
+    })
 }
 
-export const useToast = create<ToastState>((set) => ({
-   message: null,
-   type: "info",
-   showToast: ({message, type}) => set({message, type}),
-    clearToast: () => set({message: null})
-}));
+export type ToastStore = typeof $toast;
