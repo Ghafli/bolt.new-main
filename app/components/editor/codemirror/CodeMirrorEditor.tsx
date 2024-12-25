@@ -1,92 +1,160 @@
-// app/components/CodeMirrorEditor/CodeMirrorEditor.tsx
-import React, { useState, useRef, useEffect } from "react";
-import { EditorView, basicSetup } from "codemirror";
-import { EditorState, Transaction } from "@codemirror/state";
-import { javascript } from "@codemirror/lang-javascript";
-import { css } from "@codemirror/lang-css";
-import { html } from "@codemirror/lang-html";
-import { oneDark } from "./cm-theme";
-import { indentWithTab } from "./indent";
-import { useTheme } from "@/app/lib/stores/theme";
-import { useEditor } from "@/app/lib/stores/editor";
-import { languages } from "./languages";
-import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
-import { keymap } from "@codemirror/view";
-import { syntaxTree } from "@codemirror/language";
+import {
+  FunctionComponent,
+  createRef,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-interface CodeMirrorEditorProps {
-    language: string;
-    value: string;
+import {
+  EditorView,
+  highlightActiveLine,
+  keymap,
+  lineNumbers,
+  rectangularSelection,
+} from "@codemirror/view";
+
+import { indentWithTab } from "@codemirror/commands";
+import { syntaxHighlighting } from "@codemirror/language";
+
+import {
+  oneDarkHighlightStyle,
+  oneDarkTheme,
+} from "@codemirror/theme-one-dark";
+import { Compartment, EditorState } from "@codemirror/state";
+import { language } from "./languages";
+import { indent } from "./indent";
+import { useTheme } from "~/app/lib/stores/theme";
+import { useEditorStore } from "~/app/lib/stores/editor";
+import { useFileStore } from "~/app/lib/stores/files";
+import { BinaryContent } from "./BinaryContent";
+import { isTextOrBinary } from "~/types/istextorbinary";
+
+export interface Props {
+  file: string;
 }
-const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({ language, value }) => {
-    const editorRef = useRef<HTMLDivElement>(null);
-    const [editorView, setEditorView] = useState<EditorView | null>(null);
-    const { theme } = useTheme();
-    const { setCode } = useEditor();
 
-    const renameSymbol = (view: EditorView) => {
-        const pos = view.state.selection.main.head;
-        const tree = syntaxTree(view.state);
-        const node = tree.resolveInner(pos, -1);
+const CodeMirrorEditor: FunctionComponent<Props> = ({ file }) => {
+  const editorRef = createRef<HTMLDivElement>();
+  const [view, setView] = useState<EditorView | null>(null);
+  const { theme } = useTheme();
+  const { code, setCode, cursor, setCursor } = useEditorStore();
+  const { files, getFileContent } = useFileStore();
 
-        if (!node || node.type.name !== "VariableDefinition" && node.type.name !== "PropertyName" && node.type.name !== "Variable") {
-            return false;
-        }
+  const currentFileContent = useMemo(() => {
+    return files[file]?.content ?? "";
+  }, [files, file]);
 
-        const symbolName = view.state.doc.sliceString(node.from, node.to);
-         const newName = prompt(`Rename ${symbolName} to:`);
+  const fileType = useMemo(() => {
+    return files[file]?.type ?? "text/plain";
+  }, [files, file]);
 
-        if (!newName) {
-            return false;
-        }
+  const isBinary = useMemo(() => {
+    return !isTextOrBinary(fileType);
+  }, [fileType]);
 
-        const changes = [];
-        tree.iterate({
-            enter: (node) => {
-                 if (node.type.name === "VariableDefinition" || node.type.name === "PropertyName" || node.type.name === "Variable") {
-                      const currentSymbol = view.state.doc.sliceString(node.from, node.to);
-                     if(currentSymbol === symbolName){
-                         changes.push({ from: node.from, to: node.to, insert: newName });
-                     }
-                 }
-            },
-        });
+  const languageCompartment = useMemo(() => new Compartment(), []);
+  const themeCompartment = useMemo(() => new Compartment(), []);
 
-           view.dispatch({ changes, annotations: [Transaction.userEvent.of('renameSymbol')] })
-             return true;
+  useEffect(() => {
+    if (!editorRef.current) return;
+
+    const startState = EditorState.create({
+      doc: currentFileContent,
+      selection: cursor,
+      extensions: [
+        lineNumbers(),
+        indent(),
+        rectangularSelection(),
+        highlightActiveLine(),
+        keymap.of([indentWithTab]),
+        syntaxHighlighting(oneDarkHighlightStyle, { fallback: true }),
+        languageCompartment.of(language(fileType)),
+        themeCompartment.of(theme === "dark" ? oneDarkTheme : []),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            setCode(update.state.doc.toString());
+          }
+          if (update.selectionSet) {
+            setCursor(update.state.selection);
+          }
+        }),
+      ],
+    });
+
+    const view = new EditorView({
+      state: startState,
+      parent: editorRef.current,
+    });
+    setView(view);
+
+    return () => {
+      view.destroy();
     };
-    useEffect(() => {
-        if (!editorRef.current) {
-            return;
-        }
-           let selectedLanguage = languages.find((lang) => lang.name === language);
+  }, [
+    editorRef,
+    fileType,
+    languageCompartment,
+    themeCompartment,
+    setCode,
+    setCursor,
+    cursor,
+    theme,
+    currentFileContent,
+  ]);
 
-        const startState = EditorState.create({
-            doc: value,
-            extensions: [
-                basicSetup,
-                selectedLanguage?.extension || javascript(),
-                theme === "dark" ? oneDark : [],
-                indentWithTab,
-                keymap.of(completionKeymap),
-                autocompletion(),
-                keymap.of([{key: "Ctrl-Shift-r", run: renameSymbol}]),
-                EditorView.updateListener.of((update) => {
-                    if (update.docChanged) {
-                        setCode(update.state.doc.toString());
-                    }
-                }),
-            ],
-        });
-        const view = new EditorView({ state: startState, parent: editorRef.current });
-        setEditorView(view);
-        return () => {
-            view.destroy();
-            setEditorView(null);
-        };
-    }, [language, theme, value, setCode]);
+  useEffect(() => {
+    if (!view) return;
 
-    return <div ref={editorRef} style={{ height: "100%" }}></div>;
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: currentFileContent,
+      },
+      selection: cursor,
+    });
+  }, [view, currentFileContent, cursor]);
+
+  useEffect(() => {
+    if (!view) return;
+    view.dispatch({
+      effects: languageCompartment.reconfigure(language(fileType)),
+    });
+  }, [view, fileType, languageCompartment]);
+
+  useEffect(() => {
+    if (!view) return;
+    view.dispatch({
+      effects: themeCompartment.reconfigure(theme === "dark" ? oneDarkTheme : []),
+    });
+  }, [view, theme, themeCompartment]);
+
+  useEffect(() => {
+    if (code === currentFileContent) return;
+    if (!view) return;
+
+    // if the change came from the outside, update the editor
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: currentFileContent,
+      },
+      selection: cursor,
+    });
+  }, [view, code, currentFileContent, cursor]);
+
+  if (isBinary) {
+    return (
+      <BinaryContent
+        content={getFileContent(file) as ArrayBuffer}
+        mimeType={fileType}
+      />
+    );
+  }
+
+  return <div className="h-full" ref={editorRef} />;
 };
 
 export default CodeMirrorEditor;
