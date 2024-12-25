@@ -1,66 +1,34 @@
-import type { Message } from 'ai';
-import { useCallback, useState } from 'react';
-import { StreamingMessageParser } from '~/lib/runtime/message-parser';
-import { workbenchStore } from '~/lib/stores/workbench';
-import { createScopedLogger } from '~/utils/logger';
+import { useCallback, useState } from "react";
 
-const logger = createScopedLogger('useMessageParser');
+import { parseMessage } from "~/app/lib/runtime/message-parser";
+import { Action } from "~/app/types/actions";
+import { useActionRunner } from "./useActionRunner";
 
-const messageParser = new StreamingMessageParser({
-  callbacks: {
-    onArtifactOpen: (data) => {
-      logger.trace('onArtifactOpen', data);
+export const useMessageParser = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const { runAction } = useActionRunner();
 
-      workbenchStore.showWorkbench.set(true);
-      workbenchStore.addArtifact(data);
-    },
-    onArtifactClose: (data) => {
-      logger.trace('onArtifactClose');
+  const onMessage = useCallback(
+    async (message: string, onAction?: (action: Action) => void) => {
+      setIsLoading(true);
+      try {
+        const actions = await parseMessage(message);
 
-      workbenchStore.updateArtifact(data, { closed: true });
-    },
-    onActionOpen: (data) => {
-      logger.trace('onActionOpen', data.action);
+        if (!actions.length) return;
 
-      // we only add shell actions when when the close tag got parsed because only then we have the content
-      if (data.action.type !== 'shell') {
-        workbenchStore.addAction(data);
+        for (const action of actions) {
+          if (onAction) {
+            onAction(action);
+          }
+
+          await runAction(action);
+        }
+      } finally {
+        setIsLoading(false);
       }
     },
-    onActionClose: (data) => {
-      logger.trace('onActionClose', data.action);
+    [runAction]
+  );
 
-      if (data.action.type === 'shell') {
-        workbenchStore.addAction(data);
-      }
-
-      workbenchStore.runAction(data);
-    },
-  },
-});
-
-export function useMessageParser() {
-  const [parsedMessages, setParsedMessages] = useState<{ [key: number]: string }>({});
-
-  const parseMessages = useCallback((messages: Message[], isLoading: boolean) => {
-    let reset = false;
-
-    if (import.meta.env.DEV && !isLoading) {
-      reset = true;
-      messageParser.reset();
-    }
-
-    for (const [index, message] of messages.entries()) {
-      if (message.role === 'assistant') {
-        const newParsedContent = messageParser.parse(message.id, message.content);
-
-        setParsedMessages((prevParsed) => ({
-          ...prevParsed,
-          [index]: !reset ? (prevParsed[index] || '') + newParsedContent : newParsedContent,
-        }));
-      }
-    }
-  }, []);
-
-  return { parsedMessages, parseMessages };
-}
+  return { onMessage, isLoading };
+};
