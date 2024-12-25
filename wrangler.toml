@@ -1,5 +1,8 @@
-#:schema node_modules/wrangler/config-schema.json
-name = "bolt"
-compatibility_flags = ["nodejs_compat"]
-compatibility_date = "2024-07-01"
-pages_build_output_dir = "./build/client"
+name = "bolt-remix"
+main = "functions/[[path]].ts"
+compatibility_date = "2023-08-21"
+
+[env.production]
+node_compat = true
+[env.development]
+node_compat = true
