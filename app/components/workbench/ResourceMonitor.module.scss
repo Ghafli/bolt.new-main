@@ -1,4 +1,11 @@
-.resourceMonitor{
-    display: flex;
-    gap: 10px;
+.resourceMonitor {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  padding: 0 10px;
+  .label {
+    font-weight: 500;
+  }
 }
