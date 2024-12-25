@@ -1,3 +1,16 @@
-.xterm {
-  padding: 1rem;
+@import "../variables.scss";
+
+.terminal {
+  background-color: var(--terminal-bg);
+  flex: 1;
+  border-radius: $radius-sm;
+  border: 1px solid var(--border-color);
+  overflow: auto;
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: $space-sm;
+  display: flex;
+  flex-direction: column;
+  white-space: pre-wrap;
 }
