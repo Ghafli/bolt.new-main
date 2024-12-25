@@ -1,65 +1,110 @@
-import { motion } from 'framer-motion';
-import { memo } from 'react';
-import { classNames } from '~/utils/classNames';
-import { cubicEasingFn } from '~/utils/easings';
-import { genericMemo } from '~/utils/react';
+import {
+  ChangeEvent,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import styles from './Slider.module.scss';
+import { classNames } from '~/app/utils/classNames';
 
-interface SliderOption<T> {
-  value: T;
-  text: string;
-}
+type SliderProps = {
+  min?: number;
+  max?: number;
+  step?: number;
+  value: number;
+  onChange: (value: number) => void;
+  className?: string;
+};
 
-export interface SliderOptions<T> {
-  left: SliderOption<T>;
-  right: SliderOption<T>;
-}
+export const Slider = forwardRef<HTMLDivElement, SliderProps>(
+  (
+    { min = 0, max = 100, step = 1, value, onChange, className },
+    ref,
+  ) => {
+    const [position, setPosition] = useState(0);
+    const sliderRef = useRef<HTMLDivElement>(null);
+    const trackRef = useRef<HTMLDivElement>(null);
 
-interface SliderProps<T> {
-  selected: T;
-  options: SliderOptions<T>;
-  setSelected?: (selected: T) => void;
-}
+    const updatePosition = useCallback(() => {
+      const range = max - min;
+      if (!range) return;
 
-export const Slider = genericMemo(<T,>({ selected, options, setSelected }: SliderProps<T>) => {
-  const isLeftSelected = selected === options.left.value;
+      const percent = ((value - min) / range) * 100;
+      setPosition(percent);
+    }, [max, min, value]);
 
-  return (
-    <div className="flex items-center flex-wrap shrink-0 gap-1 bg-bolt-elements-background-depth-1 overflow-hidden rounded-full p-1">
-      <SliderButton selected={isLeftSelected} setSelected={() => setSelected?.(options.left.value)}>
-        {options.left.text}
-      </SliderButton>
-      <SliderButton selected={!isLeftSelected} setSelected={() => setSelected?.(options.right.value)}>
-        {options.right.text}
-      </SliderButton>
-    </div>
-  );
-});
+    useEffect(() => {
+      updatePosition();
+    }, [updatePosition]);
 
-interface SliderButtonProps {
-  selected: boolean;
-  children: string | JSX.Element | Array<JSX.Element | string>;
-  setSelected: () => void;
-}
+    const handleInputChange = useCallback(
+      (event: ChangeEvent<HTMLInputElement>) => {
+        const newValue = Number(event.target.value);
+        onChange(newValue);
+      },
+      [onChange],
+    );
 
-const SliderButton = memo(({ selected, children, setSelected }: SliderButtonProps) => {
-  return (
-    <button
-      onClick={setSelected}
-      className={classNames(
-        'bg-transparent text-sm px-2.5 py-0.5 rounded-full relative',
-        selected
-          ? 'text-bolt-elements-item-contentAccent'
-          : 'text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive',
-      )}
-    >
-      <span className="relative z-10">{children}</span>
-      {selected && (
-        <motion.span
-          layoutId="pill-tab"
-          transition={{ duration: 0.2, ease: cubicEasingFn }}
-          className="absolute inset-0 z-0 bg-bolt-elements-item-backgroundAccent rounded-full"
-        ></motion.span>
-      )}
-    </button>
-  );
-});
+    const handleTrackClick = useCallback(
+      (event: React.MouseEvent<HTMLDivElement>) => {
+        if (!sliderRef.current || !trackRef.current) return;
+
+        const sliderRect = sliderRef.current.getBoundingClientRect();
+        const trackRect = trackRef.current.getBoundingClientRect();
+
+        const clickX = event.clientX;
+        const relativeX = clickX - trackRect.left;
+
+        const trackWidth = trackRect.width;
+
+        const ratio = relativeX / trackWidth;
+        const newValue = min + (max - min) * ratio;
+
+        // Snap to nearest step
+        const snappedValue = Math.round(newValue / step) * step;
+
+        // Ensure value is within bounds
+        const clampedValue = Math.min(max, Math.max(min, snappedValue));
+
+        onChange(clampedValue);
+      },
+      [max, min, onChange, step],
+    );
+
+    return (
+      <div
+        ref={ref}
+        className={classNames(styles.slider, className)}
+        onClick={handleTrackClick}
+      >
+        <div
+          ref={trackRef}
+          className={styles.track}
+          style={{
+            background: `linear-gradient(to right, var(--color-accent) ${position}%, var(--color-bg-hover) ${position}%)`,
+          }}
+        >
+          <div
+            ref={sliderRef}
+            className={styles.thumb}
+            style={{
+              left: `calc(${position}% - 8px)`,
+            }}
+          />
+        </div>
+
+        <input
+          type="range"
+          className={styles.input}
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={handleInputChange}
+        />
+      </div>
+    );
+  },
+);
