@@ -1,9 +1,14 @@
-.actions .shiki {
-  background-color: var(--bolt-elements-actions-code-background) !important;
-}
+@import "../variables.scss";
 
-.shiki {
-  &:not(:has(.actions), .actions *) {
-    background-color: var(--bolt-elements-messages-code-background) !important;
+.code-block {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background-color: var(--code-bg);
+  border-radius: $radius-sm;
+  padding: $space-xs;
+  overflow: auto;
+
+  pre {
+    margin: 0;
   }
 }
