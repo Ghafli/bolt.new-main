@@ -1,36 +1,50 @@
-import type { ITheme } from '@xterm/xterm';
+import { ITheme } from 'xterm';
 
-const style = getComputedStyle(document.documentElement);
-const cssVar = (token: string) => style.getPropertyValue(token) || undefined;
-
-export function getTerminalTheme(overrides?: ITheme): ITheme {
+export function getTheme(theme: 'light' | 'dark'): ITheme {
+  const base = {
+    background: 'var(--color-bg-primary)',
+    foreground: 'var(--color-text-primary)',
+    cursor: 'var(--color-accent)',
+    selection: 'var(--color-bg-active)',
+  };
+  if (theme === 'light') {
+    return {
+      ...base,
+      black: '#000000',
+      red: '#C83737',
+      green: '#32CD32',
+      yellow: '#FFFF00',
+      blue: '#4682B4',
+      magenta: '#8A2BE2',
+      cyan: '#00FFFF',
+      white: '#D0D0D0',
+      brightBlack: '#808080',
+      brightRed: '#FF0000',
+      brightGreen: '#00FF00',
+      brightYellow: '#FFFF00',
+      brightBlue: '#0000FF',
+      brightMagenta: '#FF00FF',
+      brightCyan: '#00FFFF',
+      brightWhite: '#FFFFFF',
+    };
+  }
   return {
-    cursor: cssVar('--bolt-elements-terminal-cursorColor'),
-    cursorAccent: cssVar('--bolt-elements-terminal-cursorColorAccent'),
-    foreground: cssVar('--bolt-elements-terminal-textColor'),
-    background: cssVar('--bolt-elements-terminal-backgroundColor'),
-    selectionBackground: cssVar('--bolt-elements-terminal-selection-backgroundColor'),
-    selectionForeground: cssVar('--bolt-elements-terminal-selection-textColor'),
-    selectionInactiveBackground: cssVar('--bolt-elements-terminal-selection-backgroundColorInactive'),
-
-    // ansi escape code colors
-    black: cssVar('--bolt-elements-terminal-color-black'),
-    red: cssVar('--bolt-elements-terminal-color-red'),
-    green: cssVar('--bolt-elements-terminal-color-green'),
-    yellow: cssVar('--bolt-elements-terminal-color-yellow'),
-    blue: cssVar('--bolt-elements-terminal-color-blue'),
-    magenta: cssVar('--bolt-elements-terminal-color-magenta'),
-    cyan: cssVar('--bolt-elements-terminal-color-cyan'),
-    white: cssVar('--bolt-elements-terminal-color-white'),
-    brightBlack: cssVar('--bolt-elements-terminal-color-brightBlack'),
-    brightRed: cssVar('--bolt-elements-terminal-color-brightRed'),
-    brightGreen: cssVar('--bolt-elements-terminal-color-brightGreen'),
-    brightYellow: cssVar('--bolt-elements-terminal-color-brightYellow'),
-    brightBlue: cssVar('--bolt-elements-terminal-color-brightBlue'),
-    brightMagenta: cssVar('--bolt-elements-terminal-color-brightMagenta'),
-    brightCyan: cssVar('--bolt-elements-terminal-color-brightCyan'),
-    brightWhite: cssVar('--bolt-elements-terminal-color-brightWhite'),
-
-    ...overrides,
+    ...base,
+    black: '#000000',
+    red: '#FF6B6B',
+    green: '#42F56C',
+    yellow: '#F0E68C',
+    blue: '#66B2FF',
+    magenta: '#F066FF',
+    cyan: '#87CEEB',
+    white: '#FFFFFF',
+    brightBlack: '#808080',
+    brightRed: '#FF0000',
+    brightGreen: '#00FF00',
+    brightYellow: '#FFFF00',
+    brightBlue: '#0000FF',
+    brightMagenta: '#FF00FF',
+    brightCyan: '#00FFFF',
+    brightWhite: '#FFFFFF',
   };
 }
