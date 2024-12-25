@@ -1,63 +1,65 @@
---- a/app/components/chat/Chat.client.tsx
-+++ b/app/components/chat/Chat.client.tsx
-@@ -1,15 +1,16 @@
--import React, { useState } from "react";
-+import React, { useEffect, useState } from "react";
- import SendButton from "./SendButton.client";
- import Messages from "./Messages.client";
- import { useChat } from "@/app/lib/stores/chat";
- import styles from "./BaseChat.module.scss";
--import { useLocation, useNavigate, useParams } from "react-router-dom";
-+import {  useNavigate, useParams } from "react-router-dom";
- import { IconButton } from "@/app/components/ui/IconButton";
- import { useSnapScroll } from "@/app/lib/hooks/useSnapScroll";
- import { useAuth } from "@/app/lib/stores/auth";
-+import { useLocation } from "react-router-dom";
- 
- const Chat: React.FC = () => {
--    const { addMessage, messages, setMessages } = useChat();
-+    const { addMessage, messages, setMessages, started } = useChat();
-     const [message, setMessage] = useState("");
-       const { user } = useAuth();
- 
-@@ -20,7 +21,7 @@
-         const {snap} = useSnapScroll();
-     const handleSendMessage = (newMessage: string) => {
-          addMessage({ type: "user", content: newMessage });
--        setMessage("");
-+         setMessage("");
-     };
-     const handleShareChat = async() => {
-        if(!user){
-@@ -40,11 +41,14 @@
-    }
-    React.useEffect(() => {
-       if(id){
-+
-          try {
-             const parsedMessages = JSON.parse(decodeURIComponent(id));
-             setMessages(parsedMessages);
-             snap('chat');
-           }
-+
-+
-            catch(e) {
-             console.error("Error parsing chat", e)
-           }
-@@ -52,13 +56,14 @@
+import { useMatches } from '@remix-run/react';
+import { useChat } from '~/app/lib/stores/chat';
+import { useEffect, useMemo } from 'react';
+import { AssistantMessage } from './AssistantMessage';
+import { UserMessage } from './UserMessage';
+import { BaseChat } from './BaseChat';
+import { useAuth } from '~/app/lib/stores/auth';
+import { ChatDescription } from '~/app/lib/persistence/ChatDescription.client';
+
+export function ChatClient() {
+  const matches = useMatches();
+  const chatId = matches.at(-1)?.params?.id as string;
+  const { messages, addMessage, pendingMessage } = useChat();
+  const { user } = useAuth();
+
+
+    const filteredMessages = useMemo(() => {
+        return messages.filter((m) => m.chatId === chatId);
+    }, [messages, chatId])
+    
+  const handleSendMessage = (message: string) => {
+      if (!user?.id) {
+          return;
+      }
+    addMessage({
+      chatId,
+      content: message,
+      role: 'user',
+    });
+  };
+
+
+    useEffect(() => {
+        if (chatId) {
+            window.document.title = `Chat ${chatId}`;
         }
-    },[id, setMessages, snap])
- 
--    if(location.pathname === "/") {
-+      if(!started) {
-           return (
-               <div>
-                    <h2>Welcome to Bolt!</h2>
-                     <p>Sign in to start a chat.</p>
-                 </div>
-          )
--    }
-+      }
-     return (
-         <div className={styles.baseChat}>
-           <div className={styles.chatHeader}>
+    }, [chatId])
+  return (
+    <div className="flex h-full flex-col">
+      <ChatDescription chatId={chatId} />
+      <div className="flex-1 overflow-hidden">
+        <BaseChat
+          messages={filteredMessages}
+          onSendMessage={handleSendMessage}
+          inputPlaceholder="Ask me anything..."
+          pendingMessage={pendingMessage?.chatId === chatId ? pendingMessage : undefined}
+        >
+          {filteredMessages.map((message, i) => {
+            if (message.role === 'user') {
+              return <UserMessage key={i} message={message} />;
+            }
+            return (
+              <AssistantMessage
+                key={i}
+                message={message}
+                  isPending={pendingMessage?.id === message.id && pendingMessage?.role === "assistant"}
+              />
+            );
+          })}
+            {pendingMessage?.chatId === chatId && pendingMessage?.role === 'assistant' && <AssistantMessage message={pendingMessage} isPending={true}/> }
+        </BaseChat>
+      </div>
+    </div>
+  );
+}
