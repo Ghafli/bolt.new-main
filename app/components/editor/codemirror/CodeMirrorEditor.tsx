@@ -1,160 +1,178 @@
 import {
-  FunctionComponent,
-  createRef,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+  type ChangeSpec,
+  EditorState,
+  Extension,
+  StateEffect,
+} from "@codemirror/state";
+import { EditorView, keymap } from "@codemirror/view";
 import {
-  EditorView,
-  highlightActiveLine,
-  keymap,
-  lineNumbers,
-  rectangularSelection,
-} from "@codemirror/view";
-
-import { indentWithTab } from "@codemirror/commands";
-import { syntaxHighlighting } from "@codemirror/language";
-
+  Compartment,
+  Prec,
+  type Facet,
+  type MapMode,
+} from "@codemirror/state";
 import {
-  oneDarkHighlightStyle,
-  oneDarkTheme,
-} from "@codemirror/theme-one-dark";
-import { Compartment, EditorState } from "@codemirror/state";
-import { language } from "./languages";
+  defaultKeymap,
+  indentWithTab,
+  type KeyBinding,
+} from "@codemirror/commands";
+import {
+  bracketMatching,
+  closeBrackets,
+  closeBracketsKeymap,
+  indentOnInput,
+  syntaxHighlighting,
+} from "@codemirror/language";
+import { languages } from "./languages";
+import { cmTheme } from "./cm-theme";
 import { indent } from "./indent";
-import { useTheme } from "~/app/lib/stores/theme";
-import { useEditorStore } from "~/app/lib/stores/editor";
-import { useFileStore } from "~/app/lib/stores/files";
-import { BinaryContent } from "./BinaryContent";
-import { isTextOrBinary } from "~/types/istextorbinary";
+import { useStore } from "~/lib/stores";
+import { useEffect, useRef, useState } from "react";
+import { classNames } from "~/utils/classNames";
 
-export interface Props {
-  file: string;
+interface CodeMirrorEditorProps {
+  value?: string;
+  language?: string;
+  onUpdate?: (value: string) => void;
+  className?: string;
+  readOnly?: boolean;
+  lineWrapping?: boolean;
+  tabSize?: number;
 }
 
-const CodeMirrorEditor: FunctionComponent<Props> = ({ file }) => {
-  const editorRef = createRef<HTMLDivElement>();
-  const [view, setView] = useState<EditorView | null>(null);
-  const { theme } = useTheme();
-  const { code, setCode, cursor, setCursor } = useEditorStore();
-  const { files, getFileContent } = useFileStore();
+const languageCompartment = new Compartment();
+const tabSizeCompartment = new Compartment();
+const readOnlyCompartment = new Compartment();
+const lineWrappingCompartment = new Compartment();
 
-  const currentFileContent = useMemo(() => {
-    return files[file]?.content ?? "";
-  }, [files, file]);
-
-  const fileType = useMemo(() => {
-    return files[file]?.type ?? "text/plain";
-  }, [files, file]);
-
-  const isBinary = useMemo(() => {
-    return !isTextOrBinary(fileType);
-  }, [fileType]);
-
-  const languageCompartment = useMemo(() => new Compartment(), []);
-  const themeCompartment = useMemo(() => new Compartment(), []);
+export function CodeMirrorEditor({
+  value = "",
+  language = "plaintext",
+  onUpdate,
+  className,
+  readOnly = false,
+  lineWrapping = false,
+  tabSize = 2,
+}: CodeMirrorEditorProps) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView>();
+  const [isReady, setIsReady] = useState(false);
+  const { editor } = useStore();
 
   useEffect(() => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || viewRef.current) {
+      return;
+    }
 
-    const startState = EditorState.create({
-      doc: currentFileContent,
-      selection: cursor,
-      extensions: [
-        lineNumbers(),
-        indent(),
-        rectangularSelection(),
-        highlightActiveLine(),
-        keymap.of([indentWithTab]),
-        syntaxHighlighting(oneDarkHighlightStyle, { fallback: true }),
-        languageCompartment.of(language(fileType)),
-        themeCompartment.of(theme === "dark" ? oneDarkTheme : []),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            setCode(update.state.doc.toString());
-          }
-          if (update.selectionSet) {
-            setCursor(update.state.selection);
-          }
-        }),
-      ],
-    });
-
+    const extensions: Extension[] = [
+      cmTheme,
+      Prec.fallback(defaultKeymap),
+      keymap.of([indentWithTab]),
+      indent(),
+      closeBrackets(),
+      closeBracketsKeymap,
+      bracketMatching(),
+      indentOnInput(),
+      syntaxHighlighting(),
+    ];
     const view = new EditorView({
-      state: startState,
+      state: EditorState.create({
+        doc: value,
+        extensions,
+      }),
       parent: editorRef.current,
     });
-    setView(view);
+
+    viewRef.current = view;
+
+    setIsReady(true);
 
     return () => {
       view.destroy();
+      viewRef.current = undefined;
+      setIsReady(false);
     };
-  }, [
-    editorRef,
-    fileType,
-    languageCompartment,
-    themeCompartment,
-    setCode,
-    setCursor,
-    cursor,
-    theme,
-    currentFileContent,
-  ]);
+  }, []);
 
+  // Language
   useEffect(() => {
-    if (!view) return;
+    if (!viewRef.current || !isReady) return;
+    const lang = languages[language];
 
-    view.dispatch({
+    if (!lang) return;
+
+    viewRef.current.dispatch({
+      effects: languageCompartment.reconfigure(lang),
+    });
+  }, [language, isReady]);
+
+  // Value
+  useEffect(() => {
+    if (!viewRef.current || !isReady) return;
+    if (viewRef.current.state.doc.toString() === value) return;
+
+    viewRef.current.dispatch({
       changes: {
         from: 0,
-        to: view.state.doc.length,
-        insert: currentFileContent,
+        to: viewRef.current.state.doc.length,
+        insert: value,
       },
-      selection: cursor,
     });
-  }, [view, currentFileContent, cursor]);
+  }, [value, isReady]);
+
+  // Tab Size
+  useEffect(() => {
+    if (!viewRef.current || !isReady) return;
+
+    viewRef.current.dispatch({
+      effects: tabSizeCompartment.reconfigure(
+        EditorState.tabSize.of(tabSize),
+      ),
+    });
+  }, [tabSize, isReady]);
+
+  // ReadOnly
+  useEffect(() => {
+    if (!viewRef.current || !isReady) return;
+
+    viewRef.current.dispatch({
+      effects: readOnlyCompartment.reconfigure(EditorView.editable.of(!readOnly)),
+    });
+  }, [readOnly, isReady]);
+
+
+  // LineWrapping
+  useEffect(() => {
+    if (!viewRef.current || !isReady) return;
+    viewRef.current.dispatch({
+      effects: lineWrappingCompartment.reconfigure(EditorView.lineWrapping.of(lineWrapping)),
+    });
+
+  },[lineWrapping, isReady])
+
+
+
+  // Update callback
+  useEffect(() => {
+    if (!viewRef.current || !isReady) return;
+
+    const handleUpdate = () => {
+      const doc = viewRef.current?.state.doc.toString();
+      if (doc && onUpdate) {
+        onUpdate(doc);
+      }
+    };
+    viewRef.current.update(handleUpdate);
+
+    viewRef.current.focus();
+  }, [onUpdate, isReady]);
 
   useEffect(() => {
-    if (!view) return;
-    view.dispatch({
-      effects: languageCompartment.reconfigure(language(fileType)),
-    });
-  }, [view, fileType, languageCompartment]);
+    if(viewRef.current && isReady){
+      editor.setEditorView(viewRef.current);
+    }
+  }, [editor, isReady])
 
-  useEffect(() => {
-    if (!view) return;
-    view.dispatch({
-      effects: themeCompartment.reconfigure(theme === "dark" ? oneDarkTheme : []),
-    });
-  }, [view, theme, themeCompartment]);
 
-  useEffect(() => {
-    if (code === currentFileContent) return;
-    if (!view) return;
-
-    // if the change came from the outside, update the editor
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: currentFileContent,
-      },
-      selection: cursor,
-    });
-  }, [view, code, currentFileContent, cursor]);
-
-  if (isBinary) {
-    return (
-      <BinaryContent
-        content={getFileContent(file) as ArrayBuffer}
-        mimeType={fileType}
-      />
-    );
-  }
-
-  return <div className="h-full" ref={editorRef} />;
-};
-
-export default CodeMirrorEditor;
+  return <div ref={editorRef} className={classNames("h-full", className)} />;
+}
