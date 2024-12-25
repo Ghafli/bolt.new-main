@@ -1,16 +1,13 @@
 #!/bin/bash
 
-bindings=""
+# This script sets up bindings for the `pnpm` command, making it easier to use
+# when using pnpm within the webcontainer. 
+# It prevents the need to type "pnpm" every time.
 
-while IFS= read -r line || [ -n "$line" ]; do
-  if [[ ! "$line" =~ ^# ]] && [[ -n "$line" ]]; then
-    name=$(echo "$line" | cut -d '=' -f 1)
-    value=$(echo "$line" | cut -d '=' -f 2-)
-    value=$(echo $value | sed 's/^"\(.*\)"$/\1/')
-    bindings+="--binding ${name}=${value} "
-  fi
-done < .env.local
-
-bindings=$(echo $bindings | sed 's/[[:space:]]*$//')
-
-echo $bindings
+alias p="pnpm"
+alias pi="pnpm install"
+alias pr="pnpm run"
+alias pd="pnpm dev"
+alias pa="pnpm add"
+alias pl="pnpm lint"
+alias pf="pnpm format"
