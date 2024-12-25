@@ -1,14 +1,27 @@
-type CommonRequest = Omit<RequestInit, 'body'> & { body?: URLSearchParams };
+import { env } from "process";
 
-export async function request(url: string, init?: CommonRequest) {
-  if (import.meta.env.DEV) {
-    const nodeFetch = await import('node-fetch');
-    const https = await import('node:https');
+interface FetchOptions extends RequestInit {
+  body?: any;
+}
 
-    const agent = url.startsWith('https') ? new https.Agent({ rejectUnauthorized: false }) : undefined;
+function getFullUrl(path: string) {
+  const baseUrl = env.NODE_ENV === "development" ? "http://localhost:8788" : "";
+  return `${baseUrl}${path}`;
+}
 
-    return nodeFetch.default(url, { ...init, agent });
+export async function fetchApi(path: string, options?: FetchOptions) {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  const token = localStorage.getItem("token");
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
-  return fetch(url, init);
+  return fetch(getFullUrl(path), {
+    ...options,
+    headers,
+    body: options?.body ? JSON.stringify(options.body) : undefined,
+  });
 }
