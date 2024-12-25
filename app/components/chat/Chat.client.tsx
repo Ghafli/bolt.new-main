@@ -1,65 +1,88 @@
-import { useMatches } from '@remix-run/react';
-import { useChat } from '~/app/lib/stores/chat';
-import { useEffect, useMemo } from 'react';
-import { AssistantMessage } from './AssistantMessage';
-import { UserMessage } from './UserMessage';
+import { useRef, useState, useEffect } from 'react';
+import { useRouteLoaderData } from '@remix-run/react';
+
+import { useChatStore } from '~/app/lib/stores/chat';
+import { useThemeStore } from '~/app/lib/stores/theme';
+import { useSnapScroll } from '~/app/lib/hooks/useSnapScroll';
+import { useShortcuts } from '~/app/lib/hooks/useShortcuts';
+import { useMessageParser } from '~/app/lib/hooks/useMessageParser';
+import { ChatType } from '~/app/types/chat';
 import { BaseChat } from './BaseChat';
-import { useAuth } from '~/app/lib/stores/auth';
-import { ChatDescription } from '~/app/lib/persistence/ChatDescription.client';
+import { usePanelResizer } from '~/app/lib/hooks/usePanelResizer';
+import { useMediaQuery } from '~/app/lib/hooks/useMediaQuery';
+import { debounce } from '~/app/utils/debounce';
+import { useWorkbenchStore } from '~/app/lib/stores/workbench';
+import { useFileStore } from '~/app/lib/stores/files';
 
-export function ChatClient() {
-  const matches = useMatches();
-  const chatId = matches.at(-1)?.params?.id as string;
-  const { messages, addMessage, pendingMessage } = useChat();
-  const { user } = useAuth();
+export default function ChatClient() {
+  const { id: chatId } = useRouteLoaderData('routes/chat.$id') as { id: string };
+  const chat = useChatStore((state) => state.chats[chatId]);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const theme = useThemeStore((state) => state.theme);
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isChatVisible = useWorkbenchStore((state) => state.isChatVisible);
+  const files = useFileStore((state) => state.files);
+  const panelRef = useRef<HTMLDivElement>(null);
 
+  const [panelWidth, setPanelWidth] = useState(
+    () => (isMobile ? undefined : 400)
+  );
 
-    const filteredMessages = useMemo(() => {
-        return messages.filter((m) => m.chatId === chatId);
-    }, [messages, chatId])
-    
-  const handleSendMessage = (message: string) => {
-      if (!user?.id) {
-          return;
-      }
-    addMessage({
-      chatId,
-      content: message,
-      role: 'user',
-    });
-  };
+  usePanelResizer({
+    panelRef,
+    onResize: debounce(setPanelWidth, 100),
+    initialSize: isMobile ? undefined : 400,
+    side: 'right',
+    minSize: 300,
+    enabled: !isMobile,
+  });
 
+  const { snapToBottom } = useSnapScroll({
+    scrollContainer: messagesContainerRef,
+  });
 
-    useEffect(() => {
-        if (chatId) {
-            window.document.title = `Chat ${chatId}`;
+  useShortcuts(
+    {
+      'mod+enter': () => {
+        if (isMobile || isChatVisible) {
+          document
+            ?.querySelector<HTMLButtonElement>('[data-send-button]')
+            ?.click();
         }
-    }, [chatId])
+      },
+    },
+    [isMobile, isChatVisible]
+  );
+
+  const { parse } = useMessageParser();
+
+  useEffect(() => {
+    snapToBottom();
+  }, [chat?.messages, snapToBottom]);
+
+  useEffect(() => {
+    // TODO: should not have to do this, refactor chat store.
+    // This ensures that code blocks are highlighted correctly
+    // after a theme change
+    parse(chat?.messages || []);
+  }, [theme, chat?.messages, parse]);
+
+  if (!chat) {
+    return <div className="flex-1 p-4 text-center">Loading...</div>;
+  }
+
   return (
-    <div className="flex h-full flex-col">
-      <ChatDescription chatId={chatId} />
-      <div className="flex-1 overflow-hidden">
-        <BaseChat
-          messages={filteredMessages}
-          onSendMessage={handleSendMessage}
-          inputPlaceholder="Ask me anything..."
-          pendingMessage={pendingMessage?.chatId === chatId ? pendingMessage : undefined}
-        >
-          {filteredMessages.map((message, i) => {
-            if (message.role === 'user') {
-              return <UserMessage key={i} message={message} />;
-            }
-            return (
-              <AssistantMessage
-                key={i}
-                message={message}
-                  isPending={pendingMessage?.id === message.id && pendingMessage?.role === "assistant"}
-              />
-            );
-          })}
-            {pendingMessage?.chatId === chatId && pendingMessage?.role === 'assistant' && <AssistantMessage message={pendingMessage} isPending={true}/> }
-        </BaseChat>
-      </div>
+    <div
+      ref={panelRef}
+      style={{ width: panelWidth }}
+      className="flex-1 border-l border-border-primary dark:border-border-secondary"
+    >
+      <BaseChat
+        chat={chat as ChatType}
+        messagesContainerRef={messagesContainerRef}
+        snapToBottom={snapToBottom}
+        files={files}
+      />
     </div>
   );
 }
