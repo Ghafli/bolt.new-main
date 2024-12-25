@@ -1,9 +1,14 @@
-import { type PlatformProxy } from 'wrangler';
+import { type AppLoadContext } from "@remix-run/cloudflare";
 
-type Cloudflare = Omit<PlatformProxy<Env>, 'dispose'>;
+export type LoadContext = AppLoadContext & {
+  cloudflare: {
+    env: {
+      [key: string]: string
+    };
+    waitUntil(promise: Promise<any>): void;
+  };
+};
 
-declare module '@remix-run/cloudflare' {
-  interface AppLoadContext {
-    cloudflare: Cloudflare;
-  }
+export const loadContext = (context: any): LoadContext => {
+    return context
 }
