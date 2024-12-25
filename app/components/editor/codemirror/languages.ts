@@ -1,105 +1,66 @@
-import { LanguageDescription } from '@codemirror/language';
+import { json } from "@codemirror/lang-json";
+import { javascript } from "@codemirror/lang-javascript";
+import { html } from "@codemirror/lang-html";
+import { css } from "@codemirror/lang-css";
+import { markdown } from "@codemirror/lang-markdown";
+import { LanguageSupport } from "@codemirror/language";
+import { sql } from "@codemirror/lang-sql";
+import { python } from "@codemirror/lang-python";
+import { php } from "@codemirror/lang-php";
+import { rust } from "@codemirror/lang-rust";
+import { cpp } from "@codemirror/lang-cpp";
+import { java } from "@codemirror/lang-java";
+import { go } from "@codemirror/lang-go";
+import { swift } from "@codemirror/lang-swift";
+import { wasm } from "@codemirror/lang-wasm";
+import { yaml } from "@codemirror/lang-yaml";
+import { toml } from "@codemirror/lang-toml";
+import { typescript } from "@codemirror/lang-typescript";
+import { jsx } from "@codemirror/lang-jsx";
+import { tsx } from "@codemirror/lang-tsx";
 
-export const supportedLanguages = [
-  LanguageDescription.of({
-    name: 'TS',
-    extensions: ['ts'],
-    async load() {
-      return import('@codemirror/lang-javascript').then((module) => module.javascript({ typescript: true }));
-    },
-  }),
-  LanguageDescription.of({
-    name: 'JS',
-    extensions: ['js', 'mjs', 'cjs'],
-    async load() {
-      return import('@codemirror/lang-javascript').then((module) => module.javascript());
-    },
-  }),
-  LanguageDescription.of({
-    name: 'TSX',
-    extensions: ['tsx'],
-    async load() {
-      return import('@codemirror/lang-javascript').then((module) => module.javascript({ jsx: true, typescript: true }));
-    },
-  }),
-  LanguageDescription.of({
-    name: 'JSX',
-    extensions: ['jsx'],
-    async load() {
-      return import('@codemirror/lang-javascript').then((module) => module.javascript({ jsx: true }));
-    },
-  }),
-  LanguageDescription.of({
-    name: 'HTML',
-    extensions: ['html'],
-    async load() {
-      return import('@codemirror/lang-html').then((module) => module.html());
-    },
-  }),
-  LanguageDescription.of({
-    name: 'CSS',
-    extensions: ['css'],
-    async load() {
-      return import('@codemirror/lang-css').then((module) => module.css());
-    },
-  }),
-  LanguageDescription.of({
-    name: 'SASS',
-    extensions: ['sass'],
-    async load() {
-      return import('@codemirror/lang-sass').then((module) => module.sass({ indented: true }));
-    },
-  }),
-  LanguageDescription.of({
-    name: 'SCSS',
-    extensions: ['scss'],
-    async load() {
-      return import('@codemirror/lang-sass').then((module) => module.sass({ indented: false }));
-    },
-  }),
-  LanguageDescription.of({
-    name: 'JSON',
-    extensions: ['json'],
-    async load() {
-      return import('@codemirror/lang-json').then((module) => module.json());
-    },
-  }),
-  LanguageDescription.of({
-    name: 'Markdown',
-    extensions: ['md'],
-    async load() {
-      return import('@codemirror/lang-markdown').then((module) => module.markdown());
-    },
-  }),
-  LanguageDescription.of({
-    name: 'Wasm',
-    extensions: ['wat'],
-    async load() {
-      return import('@codemirror/lang-wast').then((module) => module.wast());
-    },
-  }),
-  LanguageDescription.of({
-    name: 'Python',
-    extensions: ['py'],
-    async load() {
-      return import('@codemirror/lang-python').then((module) => module.python());
-    },
-  }),
-  LanguageDescription.of({
-    name: 'C++',
-    extensions: ['cpp'],
-    async load() {
-      return import('@codemirror/lang-cpp').then((module) => module.cpp());
-    },
-  }),
-];
-
-export async function getLanguage(fileName: string) {
-  const languageDescription = LanguageDescription.matchFilename(supportedLanguages, fileName);
-
-  if (languageDescription) {
-    return await languageDescription.load();
+export const language = (mimeType: string): LanguageSupport | [] => {
+  switch (mimeType) {
+    case "application/json":
+      return json();
+    case "text/javascript":
+    case "application/javascript":
+      return javascript();
+    case "text/html":
+      return html();
+    case "text/css":
+      return css();
+    case "text/markdown":
+      return markdown();
+    case "text/x-sql":
+      return sql();
+    case "text/x-python":
+      return python();
+    case "application/x-httpd-php":
+      return php();
+    case "text/x-rustsrc":
+      return rust();
+    case "text/x-c++src":
+      return cpp();
+    case "text/x-java":
+      return java();
+    case "text/x-go":
+      return go();
+    case "text/x-swift":
+      return swift();
+    case "application/wasm":
+      return wasm();
+    case "application/x-yaml":
+      return yaml();
+    case "application/toml":
+      return toml();
+    case "application/typescript":
+      return typescript();
+      case "text/jsx":
+        return jsx();
+      case "text/tsx":
+        return tsx();
+    default:
+      return [];
   }
-
-  return undefined;
-}
+};
