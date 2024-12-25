@@ -1,6 +1,21 @@
-/**
- * This client-only module that contains everything related to auth and is used
- * to avoid importing `@webcontainer/api` in the server bundle.
- */
+import { api } from "~/app/utils/api";
+import { toast } from "../stores/toast";
 
-export { auth, type AuthAPI } from '@webcontainer/api';
+export async function authenticateWebcontainer() {
+  try {
+    const data = await api.post("/api/auth/webcontainer");
+    if (!data.ok) {
+      console.error(
+        "Webcontainer authentication failed, the API returned:",
+        await data.text()
+      );
+      toast.error("Failed to authenticate webcontainer");
+      return;
+    }
+    const authData = await data.json();
+    return authData.token;
+  } catch (e) {
+    console.error("Webcontainer authentication failed with error:", e);
+    toast.error("Failed to authenticate webcontainer");
+  }
+}
